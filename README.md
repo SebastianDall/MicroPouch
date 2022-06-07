@@ -13,5 +13,8 @@ Not all metagenomes turned out good. For some plates many samples failed even th
 The script also visualizes the plates before and after correction.
 
 ## Metadata
-The `MicroPouch_metadata.Rmd` ...
+The `MicroPouch_metadata.Rmd` loads the metadata that is associated with the samples. That is not barcodes. It is the FMT/placebo information, which patient received FMT from which donor etc.
+
+### Sample Metadata
+The script will produce a file called `sample_metadata.csv` that merges the barcode metadata/position with the actual sample_metadata.
 
