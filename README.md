@@ -12,5 +12,6 @@ Not all metagenomes turned out good. For some plates many samples failed even th
 
 The script also visualizes the plates before and after correction.
 
-
+## Metadata
+The `MicroPouch_metadata.Rmd` ...
 
