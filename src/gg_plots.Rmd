@@ -1,0 +1,153 @@
+---
+title: "plots and figures"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## load libraries
+```{r}
+library(tidyverse)
+library(ggpubr)
+```
+
+## Load data
+```{r}
+d_ext <- read_csv("../data/metadata/csv/sample_metadata.csv")
+```
+
+```{r}
+stage_fct <- c("inclusion", 
+         "treatment_1", 
+         "treatment_2",
+         "treatment_3",
+         "treatment_4",
+         "control_30dg",
+         "control_1mth",
+         "control_3mth",
+         "control_6mth",
+         "control_12mth",
+         "drop_out")
+
+d_ext <- d_ext %>% 
+  mutate(stage = factor(stage, levels = stage_fct, labels = stage_fct))
+
+```
+
+
+
+## Patient concentration and completion plot
+### Illumina
+#### Extraction
+
+```{r}
+d_ext %>%
+  filter(project %in% c("MP","OP","NP")) %>% 
+  mutate(above_1 = ext_conc*3 > 1,
+         illumina = round(ext_conc*3,2)) %>% 
+  ggplot(aes(x = stage, y = patient, fill = above_1, label = illumina)) + 
+  geom_tile(color = "white") + 
+  geom_text(color = "black") + 
+  #scale_color_manual(values = c("white", "red")) + 
+  scale_fill_manual(values = c("red4", "green4")) + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45,
+                                   hjust = 1)) +
+  facet_grid(. ~project, scales = "free_x", space = "free_x") + 
+  ggtitle("Samples with enough DNA for 1 ng input using 3 µl")+
+  labs(y ="", x= "")
+```
+
+#### Library
+
+```{r}
+d_ext %>%
+  filter(project %in% c("MP","OP","NP")) %>%  
+  mutate(pool_ng = round(pool_ng, 2)) %>% 
+  ggplot(aes(x = stage, y = patient, fill = pool_ng, label = pool_ng)) + 
+  geom_tile(color = "white") + 
+  geom_text(color = "black") + 
+  scale_fill_gradient(low = "red4", high = "green4") + 
+  #scale_fill_manual(values = c("red4", "blue4")) + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45,
+                                   hjust = 1)) +
+  facet_grid(. ~project, scales = "free_x", space = "free_x") + 
+  #ggtitle("Samples with enough DNA for 20 ng input using 3 µl")+
+  labs(y ="", x= "")
+```
+
+
+
+
+### Nanopore
+
+```{r}
+d_ext %>%
+  filter(project %in% c("MP","OP","NP")) %>%
+  mutate(above_500 = amount > 500,
+         nanopore = round(amount)) %>% 
+  ggplot(aes(x = stage, y = patient, fill = above_500, label = nanopore)) + 
+  geom_tile(color = "white") + 
+  geom_text(color = "black") + 
+  #scale_color_manual(values = c("white", "red")) + 
+   scale_fill_manual(values = c("red4", "green4")) + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45,
+                                   hjust = 1)) +
+  facet_grid(. ~project, scales = "free_x", space = "free_x") + 
+  ggtitle("Samples with more than 500 ng in total") +
+  labs(y ="", x= "")
+```
+
+
+
+
+```{r}
+d_ext %>%
+  #filter(project == "MP") %>% 
+  left_join(group, by = "patient") %>%
+  mutate(group = ifelse(project != "MP", "FMT", group),
+         above_200 = amount > 200,
+         nanopore = round(amount)) %>% 
+  ggplot(aes(x = stage, y = patient, fill = above_200, label = nanopore)) + 
+  geom_tile(color = "white") + 
+  geom_text(color = "black") + 
+  #scale_color_manual(values = c("white", "red")) + 
+   scale_fill_manual(values = c("red4", "green4")) + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45,
+                                   hjust = 1)) +
+  facet_grid(. ~project, scales = "free_x", space = "free_x") + 
+  ggtitle("Samples with more than 200 ng in total") +
+  labs(y ="", x= "")
+```
+
+
+
+
+
+```{r}
+d_ext %>%
+  #filter(project == "MP") %>% 
+  left_join(group, by = "patient") %>%
+  mutate(group = ifelse(project != "MP", "FMT", group),
+         conc_above33 = ext_conc > 33,
+         nanopore = round(amount)) %>% 
+  ggplot(aes(x = stage, y = patient, fill = conc_above33, label = nanopore)) + 
+  geom_tile(color = "white") + 
+  geom_text(color = "black") + 
+  #scale_color_manual(values = c("white", "red")) + 
+   scale_fill_manual(values = c("red4", "green4")) + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45,
+                                   hjust = 1)) +
+  facet_grid(. ~project, scales = "free_x", space = "free_x") + 
+  ggtitle("Samples with more than 33ng/ul in total") +
+  labs(y ="", x= "")
+```
+
+
+
