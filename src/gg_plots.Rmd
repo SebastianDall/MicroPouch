@@ -47,7 +47,7 @@ d_ext %>%
   filter(project %in% c("MP","OP","NP")) %>% 
   mutate(above_1 = ext_conc*3 > 1,
          illumina = round(ext_conc*3,2)) %>% 
-  ggplot(aes(x = stage, y = patient, fill = above_1, label = illumina)) + 
+  ggplot(aes(x = stage, y = id, fill = above_1, label = illumina)) + 
   geom_tile(color = "white") + 
   geom_text(color = "black") + 
   #scale_color_manual(values = c("white", "red")) + 
@@ -66,7 +66,7 @@ d_ext %>%
 d_ext %>%
   filter(project %in% c("MP","OP","NP")) %>%  
   mutate(pool_ng = round(pool_ng, 2)) %>% 
-  ggplot(aes(x = stage, y = patient, fill = pool_ng, label = pool_ng)) + 
+  ggplot(aes(x = stage, y = id, fill = pool_ng, label = pool_ng)) + 
   geom_tile(color = "white") + 
   geom_text(color = "black") + 
   scale_fill_gradient(low = "red4", high = "green4") + 
@@ -78,6 +78,41 @@ d_ext %>%
   #ggtitle("Samples with enough DNA for 20 ng input using 3 µl")+
   labs(y ="", x= "")
 ```
+
+
+#### Extraction / Library plate view
+```{r}
+gg_lib <- d_ext %>% 
+  filter(!is.na(lib_conc)) %>% 
+  mutate(pool_ng = round(pool_ng, 2),
+         new_row = fct_rev(new_row)) %>% 
+ggplot(aes(x = new_column, y = new_row, fill = pool_ng, label = pool_ng)) + 
+  geom_tile(color = "white") +
+  geom_text(color = "white") + 
+  scale_fill_gradient(low = "red4", high = "green4") + 
+  facet_wrap(.~library_plate) +
+  scale_x_discrete(expand = c(0, 0),position = 'top')
+```
+
+
+```{r}
+gg_ext <- d_ext %>% 
+  filter(!is.na(tube_barcode)) %>% 
+  mutate(ext_conc = round(ext_conc, 2),
+         above10 = ext_conc*3 > 1,
+         new_row = fct_rev(new_row)) %>% 
+ggplot(aes(x = tube_column, y = new_row, fill = above10, label = ext_conc)) + 
+  geom_tile(color = "white") +
+  geom_text(color = "white") + 
+  scale_fill_manual(values = c("red4", "green4")) + 
+  facet_wrap(.~library_plate) +
+  scale_x_discrete(expand = c(0, 0),position = 'top')
+```
+
+```{r}
+ggarrange(gg_ext, gg_lib, ncol = 1 )
+```
+
 
 
 
@@ -104,50 +139,45 @@ d_ext %>%
 
 
 
-
+## Patient donor match visualization
+### Complicated
 ```{r}
-d_ext %>%
-  #filter(project == "MP") %>% 
-  left_join(group, by = "patient") %>%
-  mutate(group = ifelse(project != "MP", "FMT", group),
-         above_200 = amount > 200,
-         nanopore = round(amount)) %>% 
-  ggplot(aes(x = stage, y = patient, fill = above_200, label = nanopore)) + 
-  geom_tile(color = "white") + 
-  geom_text(color = "black") + 
-  #scale_color_manual(values = c("white", "red")) + 
-   scale_fill_manual(values = c("red4", "green4")) + 
-  theme_bw() +
+don_l <- d_ext %>%
+  filter(stage %in% c("treatment_1", "treatment_2", "treatment_3", "treatment_4"),
+         project == "MP") %>% 
+  select(id, stage, project, group, donor, batch_1:batch_3) %>% 
+  pivot_longer(batch_1:batch_3, names_to = "batch", values_to = "value") %>% 
+  mutate(donor = if_else(is.na(donor), "placebo", donor)) %>% 
+
+
+  ggplot(aes(x = batch, y = id, fill = as.factor(donor), label = value)) + 
+  geom_tile(color="white") + 
+  facet_grid(~stage) + 
+  geom_text(check_overlap = T) + 
   theme(axis.text.x = element_text(angle = 45,
-                                   hjust = 1)) +
-  facet_grid(. ~project, scales = "free_x", space = "free_x") + 
-  ggtitle("Samples with more than 200 ng in total") +
-  labs(y ="", x= "")
+                                   hjust = 1))
+
+don_l
 ```
 
 
-
-
-
+### Simple
 ```{r}
-d_ext %>%
-  #filter(project == "MP") %>% 
-  left_join(group, by = "patient") %>%
-  mutate(group = ifelse(project != "MP", "FMT", group),
-         conc_above33 = ext_conc > 33,
-         nanopore = round(amount)) %>% 
-  ggplot(aes(x = stage, y = patient, fill = conc_above33, label = nanopore)) + 
-  geom_tile(color = "white") + 
-  geom_text(color = "black") + 
-  #scale_color_manual(values = c("white", "red")) + 
-   scale_fill_manual(values = c("red4", "green4")) + 
-  theme_bw() +
+don_l <- d_ext %>%
+  filter(stage %in% c("treatment_1", "treatment_2", "treatment_3", "treatment_4"),
+         project %in% c("MP","OP","NP")) %>% 
+  select(id, stage, project, group, donor) %>%
+  mutate(donor = parse_number(donor)) %>% 
+  #mutate(donor = if_else(is.na(donor), "p", donor)) %>% 
+
+
+  ggplot(aes(x = stage, y = id, fill = group, label = donor)) + 
+  geom_tile(color="white") + 
+  facet_grid(~project) + 
+  geom_text(check_overlap = T) + 
   theme(axis.text.x = element_text(angle = 45,
-                                   hjust = 1)) +
-  facet_grid(. ~project, scales = "free_x", space = "free_x") + 
-  ggtitle("Samples with more than 33ng/ul in total") +
-  labs(y ="", x= "")
+                                   hjust = 1))
+
+don_l
 ```
-
-
 

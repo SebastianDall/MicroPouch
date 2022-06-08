@@ -113,6 +113,15 @@ m <- metadata %>%
 
 
 ## Donor Batch Overview and Barcode
+
+
+### Load Barcodes
+```{r}
+barcode_metadata <- read_csv("../data/metadata/csv/barcode_metadata.csv")
+```
+
+
+
 ### Overview
 
 A donor batch is associated with a date and a donor number
@@ -138,11 +147,6 @@ DoBa_o_l <- DoBa_o_c %>%
 
 ```
 
-
-### Load Barcodes
-```{r}
-barcode_metadata <- read_csv("../data/metadata/csv/barcode_metadata.csv")
-```
 
 
 
@@ -194,13 +198,17 @@ PaDo_l <- PaDo_c %>%
 
 
 ## Join information in DoBa and PaDo
-Joining DoBa and PaDo gives me the batch number from donor to each patient
+This will create a dataframe for donor batch connection. 
 
 ```{r}
 d_pado <- DoBa %>%
   rename(batch = batch_name, donor = donor_number) %>%
-  full_join(PaDo_l, by = c("donor", "batch"))
+  full_join(PaDo_l, by = c("donor", "batch")) %>% 
+  mutate(stage = str_sub(donor_batch, 1,7),
+         stage = str_replace(stage, "Donor", "treatment")) %>% 
+  mutate(treatment_batch_number = str_sub(donor_batch,9,-1))
 ```
+
 
 
 
@@ -379,131 +387,23 @@ d_pat_don <- d_ext %>%
   left_join(group, by = c("patient", "project")) %>%
   mutate(group = ifelse(project != "MP", "FMT", group))
 
-#write_csv(d_pat_don, "../data/metadata/csv/sample_metadata.csv")
-
 ```
 
-
-
-## Patient concentration and completion plot
-### Illumina
-#### Extraction
+#### Fill in donor batch information
 
 ```{r}
-d_ext %>%
-  filter(project %in% c("MP","OP","NP")) %>% 
-  left_join(group, by = "patient") %>%
-  mutate(group = ifelse(project != "MP", "FMT", group),
-         above_1 = ext_conc*3 > 1,
-         illumina = round(ext_conc*3,2)) %>% 
-  ggplot(aes(x = stage, y = patient, fill = above_1, label = illumina)) + 
-  geom_tile(color = "white") + 
-  geom_text(color = "black") + 
-  #scale_color_manual(values = c("white", "red")) + 
-  scale_fill_manual(values = c("red4", "green4")) + 
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 45,
-                                   hjust = 1)) +
-  facet_grid(. ~project, scales = "free_x", space = "free_x") + 
-  ggtitle("Samples with enough DNA for 1 ng input using 3 µl")+
-  labs(y ="", x= "")
+
+d_fill <- d_pado %>% 
+  select(donor, barcode_clean, batch_donation_number, batch) %>% 
+  distinct() %>% 
+  rename(patient = donor,
+         sample_barcode = barcode_clean,
+         fecal_donation_number=batch_donation_number,
+         donor_batch = batch) %>% 
+  right_join(d_pat_don, by = c("sample_barcode", "patient","fecal_donation_number")) %>% 
+  unite("batch", c(patient_batch, donor_batch), na.rm = T)
+
 ```
-
-#### Library
-
-```{r}
-gg_library_MP <- d_ext %>%
-  #filter(project == "MP") %>% 
-  left_join(group, by = "patient") %>%
-  mutate(group = ifelse(project != "MP", "FMT", group),
-         pool_ng = round(pool_ng, 2)) %>% 
-  ggplot(aes(x = stage, y = patient, fill = pool_ng, label = pool_ng)) + 
-  geom_tile(color = "white") + 
-  geom_text(color = "black") + 
-  scale_fill_gradient(low = "red4", high = "green4") + 
-  #scale_fill_manual(values = c("red4", "blue4")) + 
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 45,
-                                   hjust = 1)) +
-  facet_grid(. ~project, scales = "free_x", space = "free_x") + 
-  #ggtitle("Samples with enough DNA for 20 ng input using 3 µl")+
-  labs(y ="", x= "")
-```
-
-
-
-
-### Nanopore
-
-```{r}
-d_ext %>%
-  #filter(project == "MP") %>% 
-  left_join(group, by = "patient") %>%
-  mutate(group = ifelse(project != "MP", "FMT", group),
-         above_500 = amount > 500,
-         nanopore = round(amount)) %>% 
-  ggplot(aes(x = stage, y = patient, fill = above_500, label = nanopore)) + 
-  geom_tile(color = "white") + 
-  geom_text(color = "black") + 
-  #scale_color_manual(values = c("white", "red")) + 
-   scale_fill_manual(values = c("red4", "green4")) + 
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 45,
-                                   hjust = 1)) +
-  facet_grid(. ~project, scales = "free_x", space = "free_x") + 
-  ggtitle("Samples with more than 500 ng in total") +
-  labs(y ="", x= "")
-```
-
-
-
-
-```{r}
-d_ext %>%
-  #filter(project == "MP") %>% 
-  left_join(group, by = "patient") %>%
-  mutate(group = ifelse(project != "MP", "FMT", group),
-         above_200 = amount > 200,
-         nanopore = round(amount)) %>% 
-  ggplot(aes(x = stage, y = patient, fill = above_200, label = nanopore)) + 
-  geom_tile(color = "white") + 
-  geom_text(color = "black") + 
-  #scale_color_manual(values = c("white", "red")) + 
-   scale_fill_manual(values = c("red4", "green4")) + 
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 45,
-                                   hjust = 1)) +
-  facet_grid(. ~project, scales = "free_x", space = "free_x") + 
-  ggtitle("Samples with more than 200 ng in total") +
-  labs(y ="", x= "")
-```
-
-
-
-
-
-```{r}
-d_ext %>%
-  #filter(project == "MP") %>% 
-  left_join(group, by = "patient") %>%
-  mutate(group = ifelse(project != "MP", "FMT", group),
-         conc_above33 = ext_conc > 33,
-         nanopore = round(amount)) %>% 
-  ggplot(aes(x = stage, y = patient, fill = conc_above33, label = nanopore)) + 
-  geom_tile(color = "white") + 
-  geom_text(color = "black") + 
-  #scale_color_manual(values = c("white", "red")) + 
-   scale_fill_manual(values = c("red4", "green4")) + 
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 45,
-                                   hjust = 1)) +
-  facet_grid(. ~project, scales = "free_x", space = "free_x") + 
-  ggtitle("Samples with more than 33ng/ul in total") +
-  labs(y ="", x= "")
-```
-
-
-
 
 
 
@@ -554,25 +454,16 @@ gg_library_donor <- d_don %>%
 ```
 
 
-# GGPLOT library
 
 
+
+## Adding treatment_1-4_donor_batch
 ```{r}
-ggarrange(gg_library_MP, gg_library_donor, ncol = 2 )
-```
-
-
-```{r}
-gg_lib <- ext_conc %>% 
-  filter(!is.na(lib_conc)) %>% 
-  mutate(pool_ng = round(pool_ng, 2),
-         tube_row = fct_rev(tube_row)) %>% 
-ggplot(aes(x = tube_column, y = tube_row, fill = pool_ng, label = pool_ng)) + 
-  geom_tile(color = "white") +
-  geom_text(color = "white") + 
-  scale_fill_gradient(low = "red4", high = "green4") + 
-  facet_wrap(.~rack_barcode) +
-  scale_x_discrete(expand = c(0, 0),position = 'top')
+d_treat <- d_pado %>% 
+  select(-c(donor_batch,batch, barcode_clean)) %>% 
+  pivot_wider(names_from = treatment_batch_number, values_from = batch_donation_number) %>% 
+  rename(patient = Patient,
+         project = study)
 ```
 
 
@@ -580,82 +471,18 @@ ggplot(aes(x = tube_column, y = tube_row, fill = pool_ng, label = pool_ng)) +
 
 
 ```{r}
-gg_ext <- ext_conc %>% 
-  filter(!is.na(tube_barcode)) %>% 
-  mutate(ext_conc = round(ext_conc, 2),
-         above10 = ext_conc*3 > 1,
-         tube_row = fct_rev(tube_row)) %>% 
-ggplot(aes(x = tube_column, y = tube_row, fill = above10, label = ext_conc)) + 
-  geom_tile(color = "white") +
-  geom_text(color = "white") + 
-  scale_fill_manual(values = c("red4", "green4")) + 
-  facet_wrap(.~rack_barcode) +
-  scale_x_discrete(expand = c(0, 0),position = 'top')
-```
-
-```{r}
-ggarrange(gg_ext, gg_lib, ncol = 1 )
-```
-
-
-
-
-
-
-
-
-# Showing which patient received which donor fecal sample
-
-### Isolate 1-4 behandling og group fra metadata
-
-```{r}
-treat1_4 <- PaPr_l %>%
-  filter(stage %in% c("1_behandling", "2_behandling", "3_behandling", "4_behandling"))
+d_full <- d_fill %>% 
+  rename(fecal_batch_date = batch) %>% 
+  left_join(d_treat) %>% 
+  rename(id = patient) %>% 
+  mutate(project = if_else(str_detect(sample_barcode, "DoBa"), true = "donor_batch",
+                           false = if_else(str_detect(sample_barcode, "DoSc"), true = "donor_screening", false = project))) %>% 
+  mutate(project = if_else(str_detect(sample_barcode, "Asym"), true = "donor_batch", false = project))
 ```
 
 
 ```{r}
-group <- metadata %>%
-  select(study_id, randomization_group) %>%
-  filter(!is.na(randomization_group)) %>%
-  mutate(group = ifelse(randomization_group==0, "FMT", "placebo"),
-         patient = paste0("pt",study_id),
-         study = "MP") %>% 
-  select(-study_id, -randomization_group)
+#write_csv(d_full, "../data/metadata/csv/sample_metadata.csv")
 ```
-
-
-```{r}
-d_treat <- left_join(treat1_4, group, by = "patient")
-```
-
-* Make 1-4 behandling i d_pado
-
-```{r}
-d_pado_treat <- d_pado %>%
-  mutate(stage = paste0(parse_number(donor_batch), "_behandling")) %>% 
-  rename(patient = Patient) %>% 
-  full_join(d_treat, by = c("patient", "stage", "study")) %>% 
-  mutate(donor = ifelse(group == "placebo" & study == "MP", "placebo", donor)) %>% 
-  mutate(label_)
-```
-
-
-
-
-
-> I need PaOP patient overview and join with current d_pado_treat
-
-```{r}
-d_pado_treat %>%
-  ggplot(aes(x = as.factor(stage), y = as.factor(patient), fill = as.factor(donor), label = batch_donation_number)) + 
-  geom_tile(color="white") + 
-  facet_grid(~factor(study, levels = c("MP", "OP", "NP"))) + 
-  geom_text(check_overlap = T) + 
-  theme(axis.text.x = element_text(angle = 45,
-                                   hjust = 1))
-```
-
-
 
 
