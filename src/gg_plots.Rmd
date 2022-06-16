@@ -13,6 +13,63 @@ library(tidyverse)
 library(ggpubr)
 ```
 
+
+# Metadata
+
+```{r}
+pdai %>% 
+  mutate(redcap_event_name = factor(redcap_event_name, levels = c("inclusion_arm_1", "followup_30day_arm_1")),
+         study_id = as.factor(as.numeric(study_id))) %>% 
+  group_by(study_id) %>% 
+  filter(n_distinct(redcap_event_name) == 2) %>% 
+  ggplot(aes(x = redcap_event_name, y = pdai_score, 
+             fill = factor(redcap_event_name, levels = c("inclusion_arm_1", "followup_30day_arm_1"))))+
+  geom_boxplot(outlier.size = 0) +
+  geom_point(aes(group = study_id), position = position_dodge(0.2)) + #aes(x = as.factor(redcap_event_name), y = pdai_score) 
+  geom_line(aes(group = study_id), position = position_dodge(0.2)) + 
+  facet_grid(.~randomization_group)+
+  theme(legend.position = "none")
+  
+```
+
+
+```{r}
+pdai %>% 
+  mutate(redcap_event_name = factor(redcap_event_name, levels = c("inclusion_arm_1", "followup_30day_arm_1")),
+         study_id = as.factor(as.numeric(study_id))) %>% 
+  group_by(study_id) %>% 
+  filter(n_distinct(redcap_event_name) == 2) %>% 
+  group_by(randomization_group,redcap_event_name) %>% 
+  summarise(median = median(pdai_score))
+
+
+pdai_dif <- pdai %>% 
+  group_by(study_id) %>% 
+  filter(n_distinct(redcap_event_name) == 2) %>% 
+  select(study_id, redcap_event_name, randomization_group, pdai_score) %>% 
+  pivot_wider(names_from = redcap_event_name, values_from = pdai_score) %>% 
+  mutate(diff = inclusion_arm_1 - followup_30day_arm_1)
+
+```
+
+
+
+```{r}
+pdai_dif %>% 
+  ggplot(aes(x = diff)) +
+  geom_histogram() +
+  facet_grid(.~randomization_group)
+
+observed_statistic <- pdai %>% 
+  specify(pdai_score ~ randomization_group) %>% 
+  calculate(stat = "diff in means", order = c("FMT", "Placebo"))
+```
+
+
+
+
+
+
 ## Load data
 ```{r}
 d_ext <- read_csv("../data/metadata/csv/sample_metadata.csv")
@@ -92,6 +149,8 @@ ggplot(aes(x = new_column, y = new_row, fill = pool_ng, label = pool_ng)) +
   scale_fill_gradient(low = "red4", high = "green4") + 
   facet_wrap(.~library_plate) +
   scale_x_discrete(expand = c(0, 0),position = 'top')
+
+gg_lib
 ```
 
 
@@ -101,12 +160,14 @@ gg_ext <- d_ext %>%
   mutate(ext_conc = round(ext_conc, 2),
          above10 = ext_conc*3 > 1,
          new_row = fct_rev(new_row)) %>% 
-ggplot(aes(x = tube_column, y = new_row, fill = above10, label = ext_conc)) + 
+ggplot(aes(x = new_column, y = new_row, fill = above10, label = ext_conc)) + 
   geom_tile(color = "white") +
   geom_text(color = "white") + 
   scale_fill_manual(values = c("red4", "green4")) + 
   facet_wrap(.~library_plate) +
   scale_x_discrete(expand = c(0, 0),position = 'top')
+
+gg_ext
 ```
 
 ```{r}
