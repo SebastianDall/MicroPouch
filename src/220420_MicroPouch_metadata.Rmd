@@ -22,99 +22,300 @@ library(ggpubr)
 ## Redcap metadata
 
 ```{r}
-metadata <- read_csv("../data/metadata/MicroPouch_DATA_2022-04-20_1512.csv")
+metadata <- read_csv("../data/metadata/MicroPouch_DATA_2022-04-20_1512.csv") %>% 
+  mutate(project = "MP")
+```
+
+```{r}
+metadata_op <- read_delim("../data/metadata/MicroPouchOpen_DATA_2022-06-16_0816.csv", delim = ";") %>% 
+  mutate(project = "OP") %>% 
+  mutate(pdai_c1 = NA,
+         pdai_c2 = NA,
+         pdai_c3 = NA,
+         pdai_c4 = NA)
+```
+
+```{r}
+metadata_np <- read_delim("../data/metadata/MicroPouchNP_DATA_2022-06-16_0817.csv", delim = ";") %>% 
+  mutate(project = "NP") %>% 
+  mutate(pdai_c1 = NA,
+         pdai_c2 = NA,
+         pdai_c3 = NA,
+         pdai_c4 = NA) %>% 
+  rename(study_id = record_id)
+```
+
+### Joining the 3 datasets
+```{r}
+m_all <- bind_rows(metadata, metadata_op, metadata_np) %>% 
+  arrange(study_id) %>% 
+  relocate(project, .after = study_id)
 ```
 
 
-### unselecting unuseful columns
-
-* inclusion and exclusion criteria are ofcourse checked and unchecked for all.
-* pathogenic bacteria all 0
 
 ```{r}
-m_c <- metadata %>%
-  select(!starts_with("inclusion"), #Inclusion criteria
-         !starts_with("exclusion"), #Exclusion criteria
-         !starts_with("intest"), #Pathogenic bacteria
-         !excluded, #All zero
-         !Complete, #All "2"
-         !randomization_form_complete
-         
+group <- metadata %>%
+  select(study_id, randomization_group) %>%
+  filter(!is.na(randomization_group)) %>%
+  mutate(group = ifelse(randomization_group==0, "FMT", "placebo"),
+         patient = paste0("pt",study_id),
+         project = "MP") %>% 
+  select(-study_id, -randomization_group)
+```
+
+
+### Renaming columns
+* selecting pouch data and uniting "duplicate columns
+
+```{r}
+m_p <- m_all %>% 
+  select(study_id, project,randomization_group, redcap_event_name, 
+         contains("pdai"), starts_with("pouchdys"), starts_with("sibdq"),
+         starts_with("diet")) %>% 
+  unite('pdai_c1', c(pdai_c1, cpdai_c1), remove = T, na.rm = T) %>% 
+  unite('pdai_c2', c(pdai_c2, cpdai_c2), remove = T, na.rm = T) %>% 
+  unite('pdai_c3', c(pdai_c3, cpdai_c3), remove = T, na.rm = T) %>%
+  unite('pdai_c4', c(pdai_c4, cpdai_c4), remove = T, na.rm = T) %>% 
+  unite('pdai_complete', c(pdai_complete, cpdai_complete), remove = T, na.rm = T) %>% 
+  unite('pdai_date', c(pdai_date, cpdai_date), remove = T, na.rm = T)
+  
+```
+
+
+####Calculating pdai score and add to m_p
+* **The score is not calculated for "OP" since the pdai_e and h is not completed**
+```{r}
+m_pdai <- m_p %>% 
+  select(study_id, project, redcap_event_name, randomization_group, 
+         starts_with("pdai"), -pdai_complete, -pdai_date) %>% 
+  filter(redcap_event_name %in% c("inclusion_arm_1", "followup_30day_arm_1"),
+         project != "OP") %>% 
+  mutate_at(vars(matches("pdai_c")), as.numeric) %>% 
+  mutate(randomization_group = if_else(randomization_group == 0, "FMT", "Placebo")) %>% 
+  fill(randomization_group) %>% 
+  group_by(study_id, redcap_event_name) %>% 
+  replace(is.na(.), 0) %>% 
+  mutate(pdai_score = rowSums(across(where(is.numeric)))) %>% 
+  select(study_id, project, redcap_event_name, pdai_score) %>% 
+  right_join(m_p, by = c("study_id", "redcap_event_name", "project")) %>% 
+  arrange(study_id)
+  
+```
+
+
+#### Deselecting irrelevant columns
+```{r}
+m_rel <- m_pdai %>% 
+  select(-c(diet_date:diet_q1b),
+         -c(diet_q3:diet_q7)
          
          )
 ```
 
 
-Removing any numerical column with no variation
+
+### Changing column values
 
 ```{r}
-index <- c()
-
-
-for (c in colnames(metadata)) {
-  tmp <- metadata %>%
-    select(c(c)) %>%
-    as.data.frame()
-  if (!is.numeric(tmp[,1])) {
-    index = c(index, c)
-  }
-  
-  if (is.numeric(tmp[,1])) {
+m_v <- m_rel %>% 
+  mutate(
+    pouchdys_q2 = recode(pouchdys_q2, `0` = "<1", `1` = "1-3", `2` = "4-7", `3` = "8-10", `4` = ">10"),
+    pouchdys_q3 = recode(pouchdys_q2, `0` = "0", `1` = "<1", `2` = "1-2", `3` = ">2"),
+    pouchdys_q4 = recode(pouchdys_q4, `0` = "shaped", `1` = "pourridge", `2` = "watery"),
+    pouchdys_q5 = recode(pouchdys_q5, `1` = "yes", `0` = "no"),
+    pouchdys_q6 = recode(pouchdys_q6, `0` = "<1", `1` = "1-3", `2` = "4-7", `3` = "8-10", `4` = ">10"),
+    pouchdys_q7 = recode(pouchdys_q7, `0` = ">60", `1` = "60", `2` = "30", `3` = "15", `4` = "5"),
+    pouchdys_q8 = recode(pouchdys_q8, `0` = "0", `1` = "<1", `2` = "1-2", `3` = "3-4", `4` = ">4"),
+    pouchdys_q9 = recode(pouchdys_q9, `0` = "0", `1` = "<1", `2` = "1-2", `3` = "3-4", `4` = ">4"),
+    pouchdys_q10 = recode(pouchdys_q10, `0` = "0", `1` = "<1", `2` = "1-2", `3` = "3-4", `4` = ">4"),
+    pouchdys_q11 = recode(pouchdys_q11, `1` = "yes", `0` = "no"),
+    pouchdys_q12 = recode(pouchdys_q12, `1` = "yes", `0` = "no"),
+    pouchdys_q13 = recode(pouchdys_q13, `1` = "yes", `0` = "no"),
+    pouchdys_q14 = recode(pouchdys_q14, `0` = "none", `1` = "little", `2` = "much", `3` = "very much"),
+    sibdq_q1 = recode(sibdq_q1, 
+                      `1` = "all the time",
+                      `2` = "most of the time",
+                      `3` = "good portion of the time",
+                      `4` = "some of the time",
+                      `5` = "little of the time",
+                      `6` = "nearly nothing of the time",
+                      `7` = "nothing of the time"),
+    sibdq_q2 = recode(sibdq_q2, 
+                      `1` = "all the time",
+                      `2` = "most of the time",
+                      `3` = "good portion of the time",
+                      `4` = "some of the time",
+                      `5` = "little of the time",
+                      `6` = "nearly nothing of the time",
+                      `7` = "nothing of the time"),
+    sibdq_q3 = recode(sibdq_q3, 
+                      `1` = "impossible",
+                      `2` = "whole lot of trouble",
+                      `3` = "lot of trouble",
+                      `4` = "some trouble",
+                      `5` = "little trouble",
+                      `6` = "nearly no trouble",
+                      `7` = "no trouble"),
+     sibdq_q4 = recode(sibdq_q4, 
+                      `1` = "all the time",
+                      `2` = "most of the time",
+                      `3` = "good portion of the time",
+                      `4` = "some of the time",
+                      `5` = "little of the time",
+                      `6` = "nearly nothing of the time",
+                      `7` = "nothing of the time"),
+     sibdq_q5 = recode(sibdq_q5, 
+                      `1` = "all the time",
+                      `2` = "most of the time",
+                      `3` = "good portion of the time",
+                      `4` = "some of the time",
+                      `5` = "little of the time",
+                      `6` = "nearly nothing of the time",
+                      `7` = "nothing of the time"),
+     sibdq_q6 = recode(sibdq_q6, 
+                      `1` = "very big problem",
+                      `2` = "big problem",
+                      `3` = "noticeable problem",
+                      `4` = "some problems",
+                      `5` = "few problems",
+                      `6` = "nearly no problems",
+                      `7` = "no problem"),
+    sibdq_q7 = recode(sibdq_q7, 
+                      `1` = "very big problem",
+                      `2` = "big problem",
+                      `3` = "noticeable problem",
+                      `4` = "some problems",
+                      `5` = "few problems",
+                      `6` = "nearly no problems",
+                      `7` = "no problem"),
+    sibdq_q8 = recode(sibdq_q8, #  ORDER REVERSED!
+                      `7` = "all the time",
+                      `6` = "most of the time",
+                      `5` = "good portion of the time",
+                      `4` = "some of the time",
+                      `3` = "little of the time",
+                      `2` = "nearly nothing of the time",
+                      `1` = "nothing of the time"),
     
-    l <- length(tmp[!is.na(tmp[,1]), 1])
-    if (l > 1) {
-      if (var(tmp, na.rm = T) > 0) {
-      index = c(index, c)
-    }
-    }
+    sibdq_q9 = recode(sibdq_q9, 
+                      `1` = "all the time",
+                      `2` = "most of the time",
+                      `3` = "good portion of the time",
+                      `4` = "some of the time",
+                      `5` = "little of the time",
+                      `6` = "nearly nothing of the time",
+                      `7` = "nothing of the time"),
+    sibdq_q10 = recode(sibdq_q10, 
+                      `1` = "all the time",
+                      `2` = "most of the time",
+                      `3` = "good portion of the time",
+                      `4` = "some of the time",
+                      `5` = "little of the time",
+                      `6` = "nearly nothing of the time",
+                      `7` = "nothing of the time"),
+    diet_q2 = recode(diet_q2,
+                     `1` = "primary school (<10yrs)",
+                     `2` = "vocational education",
+                     `3` = "higher preparatory exam",
+                     `4` = "short-cycle higher education",
+                     `5` = "medium-cycle higher education",
+                     `6` = "long cycle higher education"
+                     ),
+    diet_q8 = recode(diet_q8,
+                     `1` = "smør",
+                     `2` = "Kærgården, Bakkedal, Marklyst, Mælkebytte, Lurpak smørbar",
+                     `3` = "Plantemargarine 60-80% (i bæger af 400g)",
+                     `4` = "Minarine (Lätta, Becal 38%)",
+                     `5` = "Becel Pro-Activ",
+                     `6` = "Margarine 70-80% (i papirpakke a 500 g)",
+                     `7` = "Fedt (svinefedt, andefedt, kokosfedt)",
+                     `8` = "Bruger ikke fedtstof på brødet",
+                     `9` = "Ved ikke"
+                     ),
+    diet_q9 = recode(diet_q9,
+                     `1` = "smør",
+                     `2` = "Kærgården, Bakkedal, Marklyst, Mælkebytte, Lurpak smørbar",
+                     `3` = "Plantemargarine 60-80% (i bæger af 400g)",
+                     `4` = "Minarine (Lätta, Becal 38%)",
+                     `5` = "Becel Pro-Activ",
+                     `6` = "Margarine 70-80% (i papirpakke a 500 g)",
+                     `7` = "Fedt (svinefedt, andefedt, kokosfedt)",
+                     `8` = "Bruger ikke fedtstof på brødet",
+                     `9` = "Ved ikke"
+                     ),
+    diet_q11_1 = recode(diet_q11_1,
+                        `1` = "daily",
+                        `2` = "weekly",
+                        `3` = "monthly",
+                        `4` = "rarely"
+                        ),
+    #diet_q11_1a = recode(diet_q11_1a,
+    #                     )
     
-  }
-  
-}
 
-
-
-m <- metadata %>%
-  select(all_of(index)) %>%
-  mutate(study_id = paste0("pt",study_id))
-
-```
-
-### Miniman dataset
-```{r}
-metadata %>%
-  select(!starts_with("inclusion") & 
-         
-         
-         
-         
-         #Inclusion criteria
-         !starts_with("exclusion") & #Exclusion criteria
-         !starts_with("intest") &#Pathogenic bacteria
-         !excluded & #All zero
-         !randomization_form_complete &
-         !family_history:patient_demografi_complete &
-         !randomization_form_complete:blodprve_complete &
-         !fcesprve_complete &
-         !fecal_biobank &
-         !fces_sample_complete
-         !affringsfrekvens_complete
+    
+    #pdai_c1 = recode(pdai_c1, `0` = "pou", `1` = "1-2>po", `2` = "+3>pou"), #pou: Post-operative usual
+         #pdai_c2 = recode(pdai_c2, `0` = "never/rarely", `1` = "Daily"),
+         #pdai_c3 = recode(pdai_c3, `0` = "none", `1` = "occational", `2` = "usual"),
+         #pdai_c4 = recode(pdai_c4, `0` = "absent", `1` = "present"),
+         #pdai_e___1 = recode(pdai_e___1,)
+    
          )
 ```
 
 
 
+* giving more indicative names to columns
+
 ```{r}
-m <- metadata %>%
-  select(study_id, redcap_event_name, sex, bmi, hospital, randomization_group)
+m_i <- m_v %>% 
+  rename(
+    pdai_stool_frequency = pdai_c1,
+    pdai_rectal_bleeding = pdai_c2,
+    pdai_bowel_abdominal = pdai_c3,
+    pdai_fever = pdai_c4,
+    pdai_edema = pdai_e___1,
+    pdai_granularity = pdai_e___2,
+    pdai_friability = pdai_e___3,
+    pdai_vp_loss = pdai_e___4,
+    pdai_mucosal_exudate = pdai_e___5,
+    pdai_ulcerations = pdai_e___6,
+    defecations_per_day = pouchdys_q1,
+    defecations_day = pouchdys_q2,
+    defecations_night = pouchdys_q3,
+    stool_consistency = pouchdys_q4,
+    urge_to_defecate = pouchdys_q5,
+    urgent_defecations_per_day = pouchdys_q6,
+    hold_back_time = pouchdys_q7,
+    leakages_per_day = pouchdys_q8,
+    uncontrolled_defecations_per_day = pouchdys_q9,
+    incomplete_defecations_per_day = pouchdys_q10,
+    diaper = pouchdys_q11,
+    anti_diarrhea_medicine = pouchdys_q12,
+    antibiotics = pouchdys_q13,
+    health_affect = pouchdys_q14
+  )
+```
+
+### mutate and rename join columns
+
+```{r}
+m_tmp <- m_i %>% 
+  mutate(study_id = as.character(study_id),
+         study_id = if_else(nchar(study_id) == 1, true = paste0("pt00",study_id), false = paste0("pt0",study_id)),
+         redcap_event_name = str_replace(redcap_event_name, "\\_arm\\_1", "")
+  )
+  recode(redcap_event_name,
+         inclusion = inclusion_arm_1,
+         
+         )
 ```
 
 
 
 
 ## Donor Batch Overview and Barcode
-
-
 ### Load Barcodes
 ```{r}
 barcode_metadata <- read_csv("../data/metadata/csv/barcode_metadata.csv")
@@ -232,14 +433,14 @@ PaPr_c <- PaPr_overview %>%
   #relocate(Kontrol_30dg, .after = `4_behandling`) %>% 
   clean_names() %>% 
   rename(inclusion = inklusion, 
-         treatment_1 = x1_behandling, 
-         treatment_2 = x2_behandling,
-         treatment_3 = x3_behandling,
-         treatment_4 = x4_behandling,
-         control_30dg = kontrol_30dg,
-         control_1mth = kontrol_1md,
-         control_3mth = kontrol_3md,
-         control_6mth = kontrol_6md,
+         treatment_5 = x1_behandling, 
+         treatment_10 = x2_behandling,
+         treatment_15 = x3_behandling,
+         treatment_21 = x4_behandling,
+         control_30dg = kontrol_30d,
+         control_1mth = kontrol_1m,
+         control_3mth = kontrol_3m,
+         control_6mth = kontrol_6m,
          control_12mth = kontrol_12md)
 
 PaPr_l <- PaPr_c %>%
@@ -272,10 +473,10 @@ PaOP_c <- PaOP_overview %>%
   rename(kontrol_3md = `Kontrol 3mdr`) %>% 
   clean_names() %>% 
   rename(inclusion = inklusion, 
-         treatment_1 = x1_behandling, 
-         treatment_2 = x2_behandling,
-         treatment_3 = x3_behandling,
-         treatment_4 = x4_behandling,
+         treatment_5 = x1_behandling, 
+         treatment_10 = x2_behandling,
+         treatment_15 = x3_behandling,
+         treatment_21 = x4_behandling,
          control_30dg = kontrol_30dg,
          control_1mth = kontrol_1md,
          control_3mth = kontrol_3md)
@@ -306,10 +507,10 @@ PaNP_c <- PaNP_overview %>%
          patient = paste0("pt",patient)) %>% 
   clean_names() %>% 
   rename(inclusion = inklusion, 
-         treatment_1 = x1_behandling, 
-         treatment_2 = x2_behandling,
-         treatment_3 = x3_behandling,
-         treatment_4 = x4_behandling,
+         treatment_5 = x1_behandling, 
+         treatment_10 = x2_behandling,
+         treatment_15 = x3_behandling,
+         treatment_21 = x4_behandling,
          control_30dg = kontrol_30dg,
          control_1mth = kontrol_1md,
          control_3mth = kontrol_3md,
@@ -483,6 +684,11 @@ d_full <- d_fill %>%
 
 ```{r}
 #write_csv(d_full, "../data/metadata/csv/sample_metadata.csv")
+```
+
+
+```{r}
+d_bar <- read_csv("../data/metadata/csv/sample_metadata.csv")
 ```
 
 
