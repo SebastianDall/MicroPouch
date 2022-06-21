@@ -21,22 +21,24 @@ library(ggpubr)
 
 ## Redcap metadata
 
-```{r}
-metadata <- read_csv("../data/metadata/MicroPouch_DATA_2022-04-20_1512.csv") %>% 
-  mutate(project = "MP")
-```
+Loading metadata csv files - downloaded from REDcap
+
+>> There are discrepencies between redcap and downloaded csv file!!
+
 
 ```{r}
-metadata_op <- read_delim("../data/metadata/MicroPouchOpen_DATA_2022-06-16_0816.csv", delim = ";") %>% 
-  mutate(project = "OP") %>% 
+metadata <- read_delim("../data/metadata/MicroPouch_DATA_2022-06-21_1300.csv", delim = ";") %>% 
+  mutate(project = "MP") %>% 
+  fill(randomization_group)
+
+metadata_op <- read_delim("../data/metadata/MicroPouchOpen_DATA_2022-06-21_1303.csv", delim = ";") %>% 
+  mutate(project = "OP") %>% #For patient 007 the pdai score is duplicated
   mutate(pdai_c1 = NA,
          pdai_c2 = NA,
          pdai_c3 = NA,
          pdai_c4 = NA)
-```
 
-```{r}
-metadata_np <- read_delim("../data/metadata/MicroPouchNP_DATA_2022-06-16_0817.csv", delim = ";") %>% 
+metadata_np <- read_delim("../data/metadata/MicroPouchNP_DATA_2022-06-21_1303.csv", delim = ";") %>% 
   mutate(project = "NP") %>% 
   mutate(pdai_c1 = NA,
          pdai_c2 = NA,
@@ -45,7 +47,12 @@ metadata_np <- read_delim("../data/metadata/MicroPouchNP_DATA_2022-06-16_0817.cs
   rename(study_id = record_id)
 ```
 
+
+
 ### Joining the 3 datasets
+
+All projects are concatenated into one variable. The projects are distinguished by the `project` variable.
+
 ```{r}
 m_all <- bind_rows(metadata, metadata_op, metadata_np) %>% 
   arrange(study_id) %>% 
@@ -66,11 +73,15 @@ group <- metadata %>%
 
 
 ### Renaming columns
-* selecting pouch data and uniting "duplicate columns
+* selecting relevant pouch data
+* uniting "duplicate" pdai columns
+
+the there are two versions of pdai questionnaire in the dataset. One from the inklusion and followup with pouch inspection, and one from the different treatment dates.
+
 
 ```{r}
-m_p <- m_all %>% 
-  select(study_id, project,randomization_group, redcap_event_name, 
+m_sel <- m_all %>% 
+  select(study_id, project, randomization_group, redcap_event_name, 
          contains("pdai"), starts_with("pouchdys"), starts_with("sibdq"),
          starts_with("diet")) %>% 
   unite('pdai_c1', c(pdai_c1, cpdai_c1), remove = T, na.rm = T) %>% 
@@ -83,28 +94,36 @@ m_p <- m_all %>%
 ```
 
 
-####Calculating pdai score and add to m_p
+#### Calculating pdai score and add to m_p
 * **The score is not calculated for "OP" since the pdai_e and h is not completed**
+
+>> The pdai score does **NOT** match with redcap for events outside inclusion and 30day followup. 
+
 ```{r}
-m_pdai <- m_p %>% 
+m_pdai <- m_sel %>% 
   select(study_id, project, redcap_event_name, randomization_group, 
          starts_with("pdai"), -pdai_complete, -pdai_date) %>% 
-  filter(redcap_event_name %in% c("inclusion_arm_1", "followup_30day_arm_1"),
-         project != "OP") %>% 
+  #filter(redcap_event_name %in% c("inclusion_arm_1", "followup_30day_arm_1")) %>% 
+  filter(redcap_event_name %in% c("inclusion_arm_1", "followup_30day_arm_1")) %>% 
   mutate_at(vars(matches("pdai_c")), as.numeric) %>% 
-  mutate(randomization_group = if_else(randomization_group == 0, "FMT", "Placebo")) %>% 
+  mutate(randomization_group = if_else(randomization_group == 0, "FMT", "placebo")) %>% 
   fill(randomization_group) %>% 
   group_by(study_id, redcap_event_name) %>% 
   replace(is.na(.), 0) %>% 
   mutate(pdai_score = rowSums(across(where(is.numeric)))) %>% 
   select(study_id, project, redcap_event_name, pdai_score) %>% 
-  right_join(m_p, by = c("study_id", "redcap_event_name", "project")) %>% 
+  right_join(m_sel, by = c("study_id", "redcap_event_name", "project")) %>% 
   arrange(study_id)
   
 ```
 
 
+
 #### Deselecting irrelevant columns
+* Some columns contains irrelevant information such as height and age in the diet questionnaire.
+
+> deselect "complete" and "date column".
+
 ```{r}
 m_rel <- m_pdai %>% 
   select(-c(diet_date:diet_q1b),
@@ -116,6 +135,8 @@ m_rel <- m_pdai %>%
 
 
 ### Changing column values
+* All values are stored as integer answers. Here these are recoded for better overview. It should be considered whether this is a good idea or if they should be factored instead.
+
 
 ```{r}
 m_v <- m_rel %>% 
@@ -271,6 +292,7 @@ m_v <- m_rel %>%
 ```{r}
 m_i <- m_v %>% 
   rename(
+    #pdai
     pdai_stool_frequency = pdai_c1,
     pdai_rectal_bleeding = pdai_c2,
     pdai_bowel_abdominal = pdai_c3,
@@ -281,38 +303,71 @@ m_i <- m_v %>%
     pdai_vp_loss = pdai_e___4,
     pdai_mucosal_exudate = pdai_e___5,
     pdai_ulcerations = pdai_e___6,
-    defecations_per_day = pouchdys_q1,
-    defecations_day = pouchdys_q2,
-    defecations_night = pouchdys_q3,
-    stool_consistency = pouchdys_q4,
-    urge_to_defecate = pouchdys_q5,
-    urgent_defecations_per_day = pouchdys_q6,
-    hold_back_time = pouchdys_q7,
-    leakages_per_day = pouchdys_q8,
-    uncontrolled_defecations_per_day = pouchdys_q9,
-    incomplete_defecations_per_day = pouchdys_q10,
-    diaper = pouchdys_q11,
-    anti_diarrhea_medicine = pouchdys_q12,
-    antibiotics = pouchdys_q13,
-    health_affect = pouchdys_q14
+    #pouch function (pf)
+    pf_defecations_per_day = pouchdys_q1,
+    pf_defecations_day = pouchdys_q2,
+    pf_defecations_night = pouchdys_q3,
+    pf_stool_consistency = pouchdys_q4,
+    pf_urge_to_defecate = pouchdys_q5,
+    pf_urgent_defecations_per_day = pouchdys_q6,
+    pf_hold_back_time = pouchdys_q7,
+    pf_leakages_per_day = pouchdys_q8,
+    pf_uncontrolled_defecations_per_day = pouchdys_q9,
+    pf_incomplete_defecations_per_day = pouchdys_q10,
+    pf_diaper = pouchdys_q11,
+    pf_anti_diarrhea_medicine = pouchdys_q12,
+    pf_antibiotics = pouchdys_q13,
+    pf_health_affect = pouchdys_q14
+    #sibdq
+    
   )
 ```
 
-### mutate and rename join columns
+### mutate and rename columns for joining later
+
+This chunk prepares the dataframe to be concatenated with the lab-metadata later.
+* Patient name is changed.
+* redcap_event_name variables are renamed.
+* randomization_group (placebo, FMT) is changed and renamed group.
+
+This dataframe is going to be concatenated with the lab metadata.
 
 ```{r}
 m_tmp <- m_i %>% 
-  mutate(study_id = as.character(study_id),
-         study_id = if_else(nchar(study_id) == 1, true = paste0("pt00",study_id), false = paste0("pt0",study_id)),
-         redcap_event_name = str_replace(redcap_event_name, "\\_arm\\_1", "")
-  )
-  recode(redcap_event_name,
-         inclusion = inclusion_arm_1,
+  ungroup() %>% 
+  # Changing study_id tags
+  mutate(study_id = paste0("pt", study_id),
+         # Renaming event names
+         redcap_event_name = str_replace(redcap_event_name, "\\_arm\\_1", ""), 
          
-         )
+  ) %>% 
+  # Changing treatment variables in recap_event_name
+  mutate(
+    sub_label = stringr::str_split(redcap_event_name, "_"),
+    tmp_label = paste0(map_if(.x = sub_label, .p = ~is.vector(.x), 2), "_", map_if(.x = sub_label, .p=~is.vector(.x), 1)),
+    redcap_event_name = if_else(str_detect(tmp_label, "treatment"), tmp_label, redcap_event_name)
+  ) %>%
+  # Changing followup in redcap_event_name
+  mutate(
+    redcap_event_name = str_replace(redcap_event_name, "\\_days", "d"),
+    redcap_event_name = str_replace(redcap_event_name, "day", "d"),
+    redcap_event_name = str_replace(redcap_event_name, "\\_months", "m"),
+    redcap_event_name = str_replace(redcap_event_name, "\\_month", "m"),
+    redcap_event_name = str_replace(redcap_event_name, "\\_p", ""),
+    redcap_event_name = str_replace(redcap_event_name, "follow\\_up", "followup")
+  ) %>% 
+  rename(
+    id = study_id,
+    stage = redcap_event_name
+    
+  ) %>% 
+  mutate(randomization_group = recode(randomization_group,
+                                      `0` = "FMT",
+                                      `1` = "placebo"),
+         randomization_group = replace_na(randomization_group, "FMT")
+         ) %>% 
+  rename(group = randomization_group)
 ```
-
-
 
 
 ## Donor Batch Overview and Barcode
@@ -407,7 +462,12 @@ d_pado <- DoBa %>%
   full_join(PaDo_l, by = c("donor", "batch")) %>% 
   mutate(stage = str_sub(donor_batch, 1,7),
          stage = str_replace(stage, "Donor", "treatment")) %>% 
-  mutate(treatment_batch_number = str_sub(donor_batch,9,-1))
+  mutate(treatment_batch_number = str_sub(donor_batch,9,-1)) %>% 
+  mutate(stage = str_replace(stage, "1", "5"),
+         stage = str_replace(stage, "2", "10"),
+         stage = str_replace(stage, "3", "15"),
+         stage = str_replace(stage, "4", "21")
+         )
 ```
 
 
@@ -437,11 +497,11 @@ PaPr_c <- PaPr_overview %>%
          treatment_10 = x2_behandling,
          treatment_15 = x3_behandling,
          treatment_21 = x4_behandling,
-         control_30dg = kontrol_30d,
-         control_1mth = kontrol_1m,
-         control_3mth = kontrol_3m,
-         control_6mth = kontrol_6m,
-         control_12mth = kontrol_12md)
+         followup_30d = kontrol_30dg,
+         followup_1m = kontrol_1md,
+         followup_3m = kontrol_3md,
+         followup_6m = kontrol_6md,
+         followup_12m = kontrol_12md)
 
 PaPr_l <- PaPr_c %>%
   pivot_longer(-patient, names_to = "stage", values_to = "patient_batch") %>%
@@ -477,9 +537,9 @@ PaOP_c <- PaOP_overview %>%
          treatment_10 = x2_behandling,
          treatment_15 = x3_behandling,
          treatment_21 = x4_behandling,
-         control_30dg = kontrol_30dg,
-         control_1mth = kontrol_1md,
-         control_3mth = kontrol_3md)
+         followup_30d = kontrol_30dg,
+         followup_1m = kontrol_1md,
+         followup_3m = kontrol_3md)
 
 PaOP_l <- PaOP_c %>%
   pivot_longer(-patient, names_to = "stage", values_to = "patient_batch") %>%
@@ -511,11 +571,11 @@ PaNP_c <- PaNP_overview %>%
          treatment_10 = x2_behandling,
          treatment_15 = x3_behandling,
          treatment_21 = x4_behandling,
-         control_30dg = kontrol_30dg,
-         control_1mth = kontrol_1md,
-         control_3mth = kontrol_3md,
-         control_6mth = kontrol_6md,
-         control_12mth = kontrol_12md)
+         followup_30d = kontrol_30dg,
+         followup_1m = kontrol_1md,
+         followup_3m = kontrol_3md,
+         followup_6m = kontrol_6md,
+         followup_12m = kontrol_12md)
 
 PaNP_l <- PaNP_c %>%
   pivot_longer(-patient, names_to = "stage", values_to = "patient_batch") %>%
@@ -536,15 +596,15 @@ Add the fecal_batch_donation for later left_join
 
 ```{r}
 stage_fct <- c("inclusion", 
-         "treatment_1", 
-         "treatment_2",
-         "treatment_3",
-         "treatment_4",
-         "control_30dg",
-         "control_1mth",
-         "control_3mth",
-         "control_6mth",
-         "control_12mth",
+         "treatment_5", 
+         "treatment_10",
+         "treatment_15",
+         "treatment_21",
+         "followup_30d",
+         "followup_1m",
+         "followup_3m",
+         "followup_6m",
+         "followup_12m",
          "drop_out")
 
 d_overview <- bind_rows(PaPr_l, PaOP_l, PaNP_l) %>% 
@@ -560,7 +620,8 @@ group <- metadata %>%
   select(study_id, randomization_group) %>%
   filter(!is.na(randomization_group)) %>%
   mutate(group = ifelse(randomization_group==0, "FMT", "placebo"),
-         patient = paste0("pt",study_id),
+         patient = as.character(study_id),
+         patient = if_else(nchar(patient) == 1, paste0("pt00",patient), paste0("pt0",patient)),
          project = "MP") %>% 
   select(-study_id, -randomization_group)
 ```
@@ -601,7 +662,7 @@ d_fill <- d_pado %>%
          sample_barcode = barcode_clean,
          fecal_donation_number=batch_donation_number,
          donor_batch = batch) %>% 
-  right_join(d_pat_don, by = c("sample_barcode", "patient","fecal_donation_number")) %>% 
+  right_join(d_ext, by = c("sample_barcode", "patient","fecal_donation_number")) %>% 
   unite("batch", c(patient_batch, donor_batch), na.rm = T)
 
 ```
@@ -686,9 +747,81 @@ d_full <- d_fill %>%
 #write_csv(d_full, "../data/metadata/csv/sample_metadata.csv")
 ```
 
+## Full metadata
 
 ```{r}
-d_bar <- read_csv("../data/metadata/csv/sample_metadata.csv")
+m_full_metadata <- full_join(d_full,m_tmp)
 ```
 
+
+```{r}
+m_full_metadata %>% 
+  filter(stage %in% c("inclusion", "followup_30d"),
+         project == "MP",
+         str_detect(id, "pt")) %>% 
+  group_by(id) %>%
+  filter(n_distinct(stage) == 2) %>% 
+  mutate(stage = factor(stage, levels = c("inclusion", "followup_30d"), labels = c("inclusion", "followup_30d"))) %>% 
+  ggplot(aes(x = stage, y = pdai_score, 
+             fill = stage))+
+  geom_boxplot(outlier.size = 0) +
+  geom_point(aes(group = id), position = position_dodge(0.2)) + #aes(x = as.factor(redcap_event_name), y = pdai_score) 
+  geom_line(aes(group = id), position = position_dodge(0.2)) + 
+  facet_grid(.~group)+
+  theme(legend.position = "none")
+  
+```
+
+```{r}
+m_full_metadata %>% 
+  filter(stage %in% c("inclusion", "followup_30d"),
+         project == "MP",
+         str_detect(id, "pt")) %>% 
+  group_by(id) %>%
+  filter(n_distinct(stage) == 2) %>% 
+  mutate(stage = factor(stage, levels = c("inclusion", "followup_30d"), labels = c("inclusion", "followup_30d"))) %>%
+  select(id, stage, group, pdai_score) %>% 
+  pivot_wider(names_from = stage, values_from = pdai_score) %>% 
+  mutate(diff = inclusion - followup_30d) %>% 
+  group_by(group) %>% 
+  summarise(mean = mean(diff),
+            sd = sd(diff))
+
+m_full_metadata %>% 
+  filter(stage %in% c("inclusion", "followup_30d"),
+         project == "MP",
+         str_detect(id, "pt")) %>% 
+  group_by(id) %>%
+  filter(n_distinct(stage) == 2) %>% 
+  mutate(stage = factor(stage, levels = c("inclusion", "followup_30d"), labels = c("inclusion", "followup_30d"))) %>%
+  select(id, stage, group, pdai_score) %>% 
+  pivot_wider(names_from = stage, values_from = pdai_score) %>% 
+  mutate(diff = inclusion - followup_30d) %>% 
+  group_by(group) %>% 
+  summarise(mean = mean(diff),
+            sd = sd(diff),
+            med_incl = median(inclusion),
+            med_30d = median(followup_30d))
+
+```
+
+```{r}
+m_full_metadata %>% 
+  filter(stage %in% c("inclusion", "followup_30d"),
+         project == "MP",
+         str_detect(id, "pt")) %>% 
+  group_by(id) %>%
+  filter(n_distinct(stage) == 2) %>% 
+  mutate(stage = factor(stage, levels = c("inclusion", "followup_30d"), labels = c("inclusion", "followup_30d"))) %>%
+  select(id, stage, group, pdai_score) %>% 
+  pivot_wider(names_from = stage, values_from = pdai_score) %>% 
+  mutate(diff = inclusion - followup_30d) %>% 
+  group_by(diff, group) %>% 
+  summarise(n = n()) %>% 
+  ggplot(aes(x = as.factor(diff), y = n)) +
+  geom_col() +
+  facet_grid(.~group)+
+  labs(x = "inclusion - 30d")
+  
+```
 
