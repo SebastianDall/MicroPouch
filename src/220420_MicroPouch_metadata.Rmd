@@ -60,17 +60,6 @@ m_all <- bind_rows(metadata, metadata_op, metadata_np) %>%
 ```
 
 
-```{r}
-group <- metadata %>%
-  select(study_id, randomization_group) %>%
-  filter(!is.na(randomization_group)) %>%
-  mutate(group = ifelse(randomization_group==0, "FMT", "placebo"),
-         patient = paste0("pt",study_id),
-         project = "MP") %>% 
-  select(-study_id, -randomization_group)
-```
-
-
 ### Renaming columns
 * selecting relevant pouch data
 * uniting "duplicate" pdai columns
@@ -88,7 +77,9 @@ m_sel <- m_all %>%
   unite('pdai_c3', c(pdai_c3, cpdai_c3), remove = T, na.rm = T) %>%
   unite('pdai_c4', c(pdai_c4, cpdai_c4), remove = T, na.rm = T) %>% 
   unite('pdai_complete', c(pdai_complete, cpdai_complete), remove = T, na.rm = T) %>% 
-  unite('pdai_date', c(pdai_date, cpdai_date), remove = T, na.rm = T)
+  unite('pdai_date', c(pdai_date, cpdai_date), remove = T, na.rm = T) %>% 
+  # Make cpdai_c# columns numeric
+  mutate(across(starts_with("pdai_c"), .fns = ~if_else(. == "", NA_character_, .)))
   
 ```
 
@@ -102,7 +93,6 @@ m_sel <- m_all %>%
 m_pdai <- m_sel %>% 
   select(study_id, project, redcap_event_name, randomization_group, 
          starts_with("pdai"), -pdai_complete, -pdai_date) %>% 
-  #filter(redcap_event_name %in% c("inclusion_arm_1", "followup_30day_arm_1")) %>% 
   filter(redcap_event_name %in% c("inclusion_arm_1", "followup_30day_arm_1")) %>% 
   mutate_at(vars(matches("pdai_c")), as.numeric) %>% 
   mutate(randomization_group = if_else(randomization_group == 0, "FMT", "placebo")) %>% 
@@ -112,24 +102,12 @@ m_pdai <- m_sel %>%
   mutate(pdai_score = rowSums(across(where(is.numeric)))) %>% 
   select(study_id, project, redcap_event_name, pdai_score) %>% 
   right_join(m_sel, by = c("study_id", "redcap_event_name", "project")) %>% 
-  arrange(study_id)
+  arrange(study_id) %>% 
+  mutate(across(starts_with("pdai_c"), .fns = ~as.numeric(.)))
   
 ```
 
 
-
-#### Deselecting irrelevant columns
-* Some columns contains irrelevant information such as height and age in the diet questionnaire.
-
-> deselect "complete" and "date column".
-
-```{r}
-m_rel <- m_pdai %>% 
-  select(-c(diet_date:diet_q1b),
-         -c(diet_q3:diet_q7)
-         
-         )
-```
 
 
 
@@ -138,7 +116,7 @@ m_rel <- m_pdai %>%
 
 
 ```{r}
-m_v <- m_rel %>% 
+m_recode <- m_pdai %>% 
   mutate(
     pouchdys_q2 = recode(pouchdys_q2, `0` = "<1", `1` = "1-3", `2` = "4-7", `3` = "8-10", `4` = ">10"),
     pouchdys_q3 = recode(pouchdys_q2, `0` = "0", `1` = "<1", `2` = "1-2", `3` = ">2"),
@@ -153,6 +131,9 @@ m_v <- m_rel %>%
     pouchdys_q12 = recode(pouchdys_q12, `1` = "yes", `0` = "no"),
     pouchdys_q13 = recode(pouchdys_q13, `1` = "yes", `0` = "no"),
     pouchdys_q14 = recode(pouchdys_q14, `0` = "none", `1` = "little", `2` = "much", `3` = "very much"),
+    
+    #SIBDQ
+    
     sibdq_q1 = recode(sibdq_q1, 
                       `1` = "all the time",
                       `2` = "most of the time",
@@ -234,6 +215,9 @@ m_v <- m_rel %>%
                       `5` = "little of the time",
                       `6` = "nearly nothing of the time",
                       `7` = "nothing of the time"),
+    
+    # Diet
+    
     diet_q2 = recode(diet_q2,
                      `1` = "primary school (<10yrs)",
                      `2` = "vocational education",
@@ -273,7 +257,86 @@ m_v <- m_rel %>%
     #diet_q11_1a = recode(diet_q11_1a,
     #                     )
     
-
+    diet_q12_09 = recode(diet_q12_09,
+                        `1` = "daily",
+                        `2` = "weekly",
+                        `3` = "monthly",
+                        `4` = "rarely"
+                        ),
+    
+    diet_q18_1 = recode(diet_q18_1,
+                        `0` = "never",
+                        `1` = "1-5 per year",
+                        `2` = "6-11 per year",
+                        `3` = "1 per month",
+                        `4` = "2 per month",
+                        `5` = "3 per month",
+                        `6` = "1 per week",
+                        `7` = "2 per week",
+                        `8` = "3 per week",
+                        `9` = "4 per week",
+                        `10` = "5 per week",
+                        `11` = "6 per week",
+                        `12` = "1 per day",
+                        `13` = "2 per day",
+                        `14` = "3 per day",
+                        `15` = ">4 per day"
+                        ),
+    diet_q18_2 = recode(diet_q18_2,
+                        `0` = "never",
+                        `1` = "1-5 per year",
+                        `2` = "6-11 per year",
+                        `3` = "1 per month",
+                        `4` = "2 per month",
+                        `5` = "3 per month",
+                        `6` = "1 per week",
+                        `7` = "2 per week",
+                        `8` = "3 per week",
+                        `9` = "4 per week",
+                        `10` = "5 per week",
+                        `11` = "6 per week",
+                        `12` = "1 per day",
+                        `13` = "2 per day",
+                        `14` = "3 per day",
+                        `15` = ">4 per day"
+                        ),
+        diet_q18_3 = recode(diet_q18_3,
+                        `0` = "never",
+                        `1` = "1-5 per year",
+                        `2` = "6-11 per year",
+                        `3` = "1 per month",
+                        `4` = "2 per month",
+                        `5` = "3 per month",
+                        `6` = "1 per week",
+                        `7` = "2 per week",
+                        `8` = "3 per week",
+                        `9` = "4 per week",
+                        `10` = "5 per week",
+                        `11` = "6 per week",
+                        `12` = "1 per day",
+                        `13` = "2 per day",
+                        `14` = "3 per day",
+                        `15` = ">4 per day"
+                        ),
+        diet_q19 = recode(diet_q19,
+                        `1` = "yes, daily",
+                        `2` = "yes, not daily",
+                        `3` = "no",
+                        `4` = "don't know",
+                        ),
+        diet_q19a = recode(diet_q19a,
+                        `1` = "yes",
+                        `2` = "no",
+                        `3` = "don't know"
+                        ),
+        diet_q19b = recode(diet_q19b,
+                        `1` = "daily",
+                        `2` = "less than daily",
+                        `3` = "none",
+                        `9` = "don't know"
+                        )
+    
+  
     
     #pdai_c1 = recode(pdai_c1, `0` = "pou", `1` = "1-2>po", `2` = "+3>pou"), #pou: Post-operative usual
          #pdai_c2 = recode(pdai_c2, `0` = "never/rarely", `1` = "Daily"),
@@ -289,7 +352,7 @@ m_v <- m_rel %>%
 * giving more indicative names to columns
 
 ```{r}
-m_i <- m_v %>% 
+m_rename <- m_recode %>% 
   rename(
     #pdai
     pdai_stool_frequency = pdai_c1,
@@ -316,11 +379,55 @@ m_i <- m_v %>%
     pf_diaper = pouchdys_q11,
     pf_anti_diarrhea_medicine = pouchdys_q12,
     pf_antibiotics = pouchdys_q13,
-    pf_health_affect = pouchdys_q14
+    pf_health_affect = pouchdys_q14,
     #sibdq
-    
+    si_drowsy = sibdq_q1,
+    si_cancel = sibdq_q2,
+    si_activity_trouble = sibdq_q3,
+    si_abdominal_pain = sibdq_q4,
+    si_depression = sibdq_q5,
+    si_gas = sibdq_q6,
+    si_weight = sibdq_q7,
+    si_relaxation = sibdq_q8,
+    si_unn_defecation = sibdq_q9,
+    si_anger = sibdq_q10,
+    #diet
+    di3_education = diet_q2,
+    di8_spreadfat = diet_q8,
+    di9_cookingfat = diet_q9,
+    di11_1_vegetables = diet_q11_1,
+    di12_9_energy_drink = diet_q12_09,
+    di18_1_beer = diet_q18_1,
+    di18_2_wine = diet_q18_2,
+    di18_3_spirit = diet_q18_3,
+    di19_smoking = diet_q19,
+    di19_a_daily = diet_q19a,
+    di19_b_lessdaily = diet_q19b
   )
 ```
+
+
+
+#### Deselecting irrelevant columns
+* Some columns contains irrelevant information such as height and age in the diet questionnaire.
+
+> deselect "timestamp", "complete", and "date column".
+
+> deselect non-recoded diet questions
+
+
+```{r}
+m_deselect <- m_rename %>% 
+  select(-c(diet_date:diet_q1b),
+         -c(diet_q3:diet_q7),
+         -contains("complete"),
+         -contains("date"),
+         -contains("timestamp")
+         )
+```
+
+
+
 
 ### mutate and rename columns for joining later
 
@@ -332,7 +439,7 @@ This chunk prepares the dataframe to be concatenated with the lab-metadata later
 This dataframe is going to be concatenated with the lab metadata.
 
 ```{r}
-m_tmp <- m_i %>% 
+m_tmp <- m_deselect %>% 
   ungroup() %>% 
   # Changing study_id tags
   mutate(study_id = paste0("pt", study_id),
@@ -612,20 +719,8 @@ d_overview <- bind_rows(PaPr_l, PaOP_l, PaNP_l) %>%
 ```
 
 
-## add FMT/placebo information
 
-```{r}
-group <- metadata %>%
-  select(study_id, randomization_group) %>%
-  filter(!is.na(randomization_group)) %>%
-  mutate(group = ifelse(randomization_group==0, "FMT", "placebo"),
-         patient = as.character(study_id),
-         patient = if_else(nchar(patient) == 1, paste0("pt00",patient), paste0("pt0",patient)),
-         project = "MP") %>% 
-  select(-study_id, -randomization_group)
-```
-
-## Creating d_pat
+## Adding library concentrations
 
 ext_conc contains the extraction conc for each sample.
 
@@ -642,19 +737,11 @@ d_ext <- full_join(d_overview, ext_conc, by = c("patient", "fecal_donation_numbe
 ```
 
 
-
-```{r}
-d_pat_don <- d_ext %>%
-  left_join(group, by = c("patient", "project")) %>%
-  mutate(group = ifelse(project != "MP", "FMT", group))
-
-```
-
 #### Fill in donor batch information
 
 ```{r}
 
-d_fill <- d_pado %>% 
+d_fill_donorbatch <- d_pado %>% 
   select(donor, barcode_clean, batch_donation_number, batch) %>% 
   distinct() %>% 
   rename(patient = donor,
@@ -668,57 +755,7 @@ d_fill <- d_pado %>%
 
 
 
-## Donor
-
-```{r}
-d_don <- ext_conc %>% 
-  filter(is.na(project), !is.na(barcode)) %>% 
-  mutate(project = ifelse(grepl("DoSc", sample_barcode), "screening", "FMT_batch"),
-         fecal_donation_number = ifelse(is.na(fecal_donation_number), screeningsround -1, fecal_donation_number),
-         patient = as.factor(patient)) 
-```
-
-
-
-### Extraction
-```{r}
-d_don %>% 
-  filter(!is.na(tube_barcode)) %>% 
-  mutate(ext_conc = round(ext_conc, 2),
-         fecal_donation_number = as.factor(fecal_donation_number)) %>% 
-  ggplot(aes(x = fecal_donation_number, y = patient, fill = ext_conc, label = ext_conc)) + 
-  geom_tile(color = "white") + 
-  geom_text(color = "white") + 
-  #scale_color_manual(values = c("white", "red")) + 
-  #scale_fill_manual(values = c("chocolate4", "grey69")) + 
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 45,
-                                   hjust = 1)) +
-  facet_grid(. ~project, scales = "free_x", space = "free_x") + 
-  ggtitle("Main micropouch completion and concentration")
-```
-
-#### Illumina library
-```{r}
-gg_library_donor <- d_don %>% 
-  filter(!is.na(tube_barcode)) %>% 
-  mutate(pool_ng = round(pool_ng, 2),
-         fecal_donation_number = as.factor(fecal_donation_number)) %>% 
-  ggplot(aes(x = fecal_donation_number, y = patient, fill = pool_ng, label = pool_ng)) + 
-  geom_tile(color = "white") + 
-  geom_text(color = "white") + 
-  scale_fill_gradient(low = "red4", high = "green4") + 
-  theme_bw() +
-  theme(axis.text.x = element_text(angle = 45,
-                                   hjust = 1)) +
-  facet_grid(. ~project, scales = "free_x", space = "free_x")
-```
-
-
-
-
-
-## Adding treatment_1-4_donor_batch
+## Adding treatment_1-4(5-21)_donor_batch
 ```{r}
 d_treat <- d_pado %>% 
   select(-c(donor_batch,batch, barcode_clean)) %>% 
@@ -729,28 +766,60 @@ d_treat <- d_pado %>%
 
 
 
+### gathering all metadata and deselecting irrelevant columns
 
+Also some tidying before joining.
+
+* Assinging project to donor screening
+* Uniting date and fecal_batch_date -> redundant
+* Tidying negative and positive controls
+* changing the LibID column because of error from excel sheet
 
 ```{r}
-d_full <- d_fill %>% 
+d_full <- d_fill_donorbatch %>% 
   rename(fecal_batch_date = batch) %>% 
-  left_join(d_treat) %>% 
-  rename(id = patient) %>% 
+  left_join(d_treat, by = c("patient", "stage", "project")) %>% 
+  rename(id = patient) %>%
+  # putting donor screening and Asym into are project
   mutate(project = if_else(str_detect(sample_barcode, "DoBa"), true = "donor_batch",
                            false = if_else(str_detect(sample_barcode, "DoSc"), true = "donor_screening", false = project))) %>% 
-  mutate(project = if_else(str_detect(sample_barcode, "Asym"), true = "donor_batch", false = project))
+  mutate(project = if_else(str_detect(sample_barcode, "Asym"), true = "donor_batch", false = project)) %>% 
+  # uniting date and fecal_batch_date
+  mutate(date = if_else(!is.na(date), paste0("(",date,")"), NA_character_)) %>% 
+  unite('fecal_batch_date', c(fecal_batch_date, date), remove = T, na.rm = T, sep = "") %>% 
+  mutate(fecal_batch_date =  if_else(fecal_batch_date == "", NA_character_, fecal_batch_date)) %>% 
+  # Giving all rows a variable called is_sample = TRUE for easy isolation later
+  mutate(is_sample = TRUE) %>% 
+  # Tidying negative and postive controls
+  mutate(sample_barcode = if_else(paste0(new_row,new_column) == "E12", "NEG_5", sample_barcode),
+         sample_barcode = if_else(paste0(new_row,new_column) == "F12", "PCR_POS", sample_barcode),
+         sample_barcode = if_else(is.na(id),
+                                  true = paste0(library_plate, "_", sample_barcode),
+                                  false = sample_barcode)) %>% 
+  # Excel sheet error correction LIB00007: MP014 -> MP013 
+  mutate(LibID = if_else(library_plate == "LIB00007", str_replace(LibID, "MP014", "MP013"), LibID)) %>% 
+  
+  # Deselecting irrelevant columns
+  select(-c(scan_time, barcode, orientation_barcode,))
 ```
 
 
 ```{r}
-#write_csv(d_full, "../data/metadata/csv/sample_metadata.csv")
+write_csv(d_full, "../data/metadata/csv/sample_metadata.csv")
 ```
 
 ## Full metadata
 
 ```{r}
-m_full_metadata <- full_join(d_full,m_tmp)
+m_full_metadata <- full_join(d_full,m_tmp, by = c("id", "stage", "project")) %>% 
+  mutate(is_sample = if_else(is.na(is_sample), FALSE, is_sample)) %>% 
+  relocate(is_sample, .after = project)
+
+
+write_delim(m_full_metadata, "../data/metadata/csv/full_metadata")
 ```
+
+
 
 
 ```{r}
