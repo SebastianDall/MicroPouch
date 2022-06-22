@@ -60,7 +60,6 @@ m_all <- bind_rows(metadata, metadata_op, metadata_np) %>%
 ```
 
 
-
 ```{r}
 group <- metadata %>%
   select(study_id, randomization_group) %>%
