@@ -15,12 +15,14 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(janitor)
 library(ggpubr)
+library(lubridate)
+library(haven)
 ```
 
 
 
-## Redcap metadata
-
+# Redcap metadata
+## Patients
 Loading metadata csv files - downloaded from REDcap
 
 >> There are discrepencies between redcap and downloaded csv file!!
@@ -45,7 +47,9 @@ metadata_np <- read_delim("../data/metadata/MicroPouchNP_DATA_2022-06-21_1303.cs
          pdai_c3 = NA,
          pdai_c4 = NA) %>% 
   rename(study_id = record_id)
+
 ```
+
 
 
 
@@ -476,6 +480,48 @@ m_tmp <- m_deselect %>%
 ```
 
 
+
+## FMT-donors
+
+
+```{r}
+metadata_fmt <- read_dta("../data/metadata/stata/metadata_fmt.dta")
+```
+
+
+### Isolating relevant redcap event
+
+Redcap_event_filter 1 is for the first article! In this project event 2 and 3 were used. Most of the metadata is inklusion analysis of pathological gut species. As patients are included these are not relevant and have been deselected.
+
+```{r}
+d_fmt_event_filter <- metadata_fmt %>% 
+  mutate(redcap_repeat_instrument = if_else(redcap_repeat_instrument == "", "info", redcap_repeat_instrument),
+         redcap_repeat_instance = if_else(redcap_repeat_instrument == "info", 2, redcap_repeat_instance)) %>% 
+  filter(redcap_repeat_instance != 1) %>% 
+  select(donor_id:gender,bmi_v2,
+         starts_with("diet"))
+```
+
+### Renaming of donors and columns
+
+```{r}
+d_fmt_renaming <- d_fmt_event_filter %>% 
+  mutate(donor_id = as.character(donor_id),
+         donor_id = if_else(nchar(donor_id) == 1, paste0("do00", donor_id), paste0("do0", donor_id))) %>% 
+  rename(id = donor_id)
+```
+
+### Deleting columns that are NA across
+
+```{r}
+d_fmt_no_NA <- d_fmt_renaming %>% 
+  filter(if_any(.cols = 4:131,.fns = ~!is.na(.)))
+```
+
+
+
+
+# Lab-relevant metadata
 ## Donor Batch Overview and Barcode
 ### Load Barcodes
 ```{r}
@@ -803,9 +849,45 @@ d_full <- d_fill_donorbatch %>%
   select(-c(scan_time, barcode, orientation_barcode,))
 ```
 
+## Correcting stages
+Apparently follow up is continued even though the a drop_out has occurred. This interferes with the other projects. I will try to solve this:
+
+> A problem occurs because same patient in different projects have 2 fecal donations with the same date. However can they be in two projects at one time???. pt9 (MP+OP) MP_followup_6m == OP_followup_1m. PaPr00000082MP = PaOp00000052MP?
 
 ```{r}
-write_csv(d_full, "../data/metadata/csv/sample_metadata.csv")
+
+open_patients <- d_full %>% 
+  filter(project == "OP") %>% 
+  select(id, project) %>% 
+  distinct(id)
+
+
+d_stage_correction <- d_full %>% 
+  # Convert fecat_batch_date to lubridate formaet
+  mutate(fecal_batch_date = str_replace(fecal_batch_date, "\\(",""),
+         fecal_batch_date = str_replace(fecal_batch_date, "\\)",""),
+         fecal_batch_date = dmy(fecal_batch_date)) %>% 
+  # Move follow-ups after drop out to OP instead
+  select(id, project, stage, fecal_batch_date) %>% 
+  filter(project %in% c("MP", "NP", "OP")) %>% 
+  pivot_wider(names_from = stage, values_from = fecal_batch_date) %>% 
+  pivot_longer(-c(id, project, drop_out), names_to = "stage", values_to = "fecal_batch_date") %>% 
+  filter(!is.na(fecal_batch_date)) %>% 
+  mutate(project = if_else(
+    condition = project == "MP" & drop_out < fecal_batch_date & id %in% open_patients$id, 
+    true = "OP",
+    false = project
+  )) %>% 
+  pivot_wider(names_from = stage, values_from = fecal_batch_date) %>% 
+  pivot_longer(drop_out:followup_3m, names_to = "stage", values_to = "fecal_batch_date")
+  
+```
+
+
+
+
+```{r}
+#write_csv(d_full, "../data/metadata/csv/sample_metadata.csv")
 ```
 
 ## Full metadata
@@ -816,80 +898,7 @@ m_full_metadata <- full_join(d_full,m_tmp, by = c("id", "stage", "project")) %>%
   relocate(is_sample, .after = project)
 
 
-write_delim(m_full_metadata, "../data/metadata/csv/full_metadata")
+#write_delim(m_full_metadata, "../data/metadata/csv/full_metadata.csv", delim = ";")
 ```
 
-
-
-
-```{r}
-m_full_metadata %>% 
-  filter(stage %in% c("inclusion", "followup_30d"),
-         project == "MP",
-         str_detect(id, "pt")) %>% 
-  group_by(id) %>%
-  filter(n_distinct(stage) == 2) %>% 
-  mutate(stage = factor(stage, levels = c("inclusion", "followup_30d"), labels = c("inclusion", "followup_30d"))) %>% 
-  ggplot(aes(x = stage, y = pdai_score, 
-             fill = stage))+
-  geom_boxplot(outlier.size = 0) +
-  geom_point(aes(group = id), position = position_dodge(0.2)) + #aes(x = as.factor(redcap_event_name), y = pdai_score) 
-  geom_line(aes(group = id), position = position_dodge(0.2)) + 
-  facet_grid(.~group)+
-  theme(legend.position = "none")
-  
-```
-
-```{r}
-m_full_metadata %>% 
-  filter(stage %in% c("inclusion", "followup_30d"),
-         project == "MP",
-         str_detect(id, "pt")) %>% 
-  group_by(id) %>%
-  filter(n_distinct(stage) == 2) %>% 
-  mutate(stage = factor(stage, levels = c("inclusion", "followup_30d"), labels = c("inclusion", "followup_30d"))) %>%
-  select(id, stage, group, pdai_score) %>% 
-  pivot_wider(names_from = stage, values_from = pdai_score) %>% 
-  mutate(diff = inclusion - followup_30d) %>% 
-  group_by(group) %>% 
-  summarise(mean = mean(diff),
-            sd = sd(diff))
-
-m_full_metadata %>% 
-  filter(stage %in% c("inclusion", "followup_30d"),
-         project == "MP",
-         str_detect(id, "pt")) %>% 
-  group_by(id) %>%
-  filter(n_distinct(stage) == 2) %>% 
-  mutate(stage = factor(stage, levels = c("inclusion", "followup_30d"), labels = c("inclusion", "followup_30d"))) %>%
-  select(id, stage, group, pdai_score) %>% 
-  pivot_wider(names_from = stage, values_from = pdai_score) %>% 
-  mutate(diff = inclusion - followup_30d) %>% 
-  group_by(group) %>% 
-  summarise(mean = mean(diff),
-            sd = sd(diff),
-            med_incl = median(inclusion),
-            med_30d = median(followup_30d))
-
-```
-
-```{r}
-m_full_metadata %>% 
-  filter(stage %in% c("inclusion", "followup_30d"),
-         project == "MP",
-         str_detect(id, "pt")) %>% 
-  group_by(id) %>%
-  filter(n_distinct(stage) == 2) %>% 
-  mutate(stage = factor(stage, levels = c("inclusion", "followup_30d"), labels = c("inclusion", "followup_30d"))) %>%
-  select(id, stage, group, pdai_score) %>% 
-  pivot_wider(names_from = stage, values_from = pdai_score) %>% 
-  mutate(diff = inclusion - followup_30d) %>% 
-  group_by(diff, group) %>% 
-  summarise(n = n()) %>% 
-  ggplot(aes(x = as.factor(diff), y = n)) +
-  geom_col() +
-  facet_grid(.~group)+
-  labs(x = "inclusion - 30d")
-  
-```
 
