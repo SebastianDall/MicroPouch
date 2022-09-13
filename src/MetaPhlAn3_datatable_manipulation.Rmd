@@ -1,0 +1,83 @@
+---
+title: "MetaPhlAn3_datatable_manipulation"
+author: "Sebastian Mølvang Dall"
+date: '2022-08-05'
+output: html_document
+---
+
+
+```{r}
+library(tidyverse)
+```
+
+
+
+## Load MetaPhlAn3 5M reads
+Load the raw subsampled file. *skip first row*
+
+```{r}
+metaphlan_raw <- read_delim("../../../MicroPouch/data/metaphlan3/MetaPhlAn3_20220705_Combined_NonHuman_Subsampled_5000000_profile.txt", delim = "\t", skip = 1)
+```
+
+
+### cleanup column names
+
+```{r}
+colnames_old <- colnames(metaphlan_raw)
+colnames_new <- str_remove(colnames_old, "\\_Non.*")
+
+
+metaphlan_clean_col_names <- metaphlan_raw %>% 
+  rename_at(all_of(colnames_old), ~ colnames_new)
+```
+
+### Subsetting table to only taxonomic level
+
+```{r}
+taxonomy <- tibble(abbr_taxonomy = c("k", "p", "c", "o", "f", "g", "s"), full_taxonomy = c("kingdom", "phylum", "class", "order", "family", "genus", "species"))
+
+taxonomic_lvl <- "s"
+
+if (taxonomic_lvl != "s") {
+  next_taxonomic_lvl = taxonomy$abbr_taxonomy[grep(taxonomic_lvl, taxonomy$abbr_taxonomy) + 1]
+} else {
+  next_taxonomic_lvl = NA
+}
+
+
+filter_tax <- function(df, nxt_tax_lvl){
+  if (!is.na(nxt_tax_lvl)) {
+    dplyr::filter(df, !str_detect(clade_name, pattern = paste0("\\|",next_taxonomic_lvl,"\\_{2}")))
+  } 
+  else {
+    df
+  }
+}
+
+
+
+
+metaphlan_subsampled <- metaphlan_clean_col_names %>% 
+  filter(str_detect(clade_name, pattern = paste0("\\|",taxonomic_lvl,"\\_{2}"))) %>% #Matches only the species identifier tag
+  filter_tax(next_taxonomic_lvl) %>% 
+  mutate(clade_name = str_remove(clade_name, paste0(".*\\|",taxonomic_lvl, "\\_{2}")))  #Removes everything before 
+
+```
+
+
+
+
+#### Saving species table
+```{r}
+write_delim(metaphlan_subsampled, paste0("../../../MicroPouch/data/metaphlan3/MetaPhlAn3_Subsample_5000000_",taxonomy$full_taxonomy[grep(taxonomic_lvl, taxonomy$abbr_taxonomy)]), delim = "\t")
+```
+
+```{r}
+#write_delim(metaphlan_subsampled, paste0("../../../MicroPouch/data/metaphlan3/MetaPhlAn3_Subsample_5000000_fulltax_",taxonomy$full_taxonomy[grep(taxonomic_lvl, taxonomy$abbr_taxonomy)]), delim = "\t")
+```
+
+
+
+
+
+
