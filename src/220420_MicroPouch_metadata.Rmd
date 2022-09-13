@@ -15,8 +15,6 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(janitor)
 library(ggpubr)
-library(lubridate)
-library(haven)
 ```
 
 
@@ -29,18 +27,18 @@ Loading metadata csv files - downloaded from REDcap
 
 
 ```{r}
-metadata <- read_delim("../data/metadata/MicroPouch_DATA_2022-06-21_1300.csv", delim = ";") %>% 
+metadata <- read_delim("../../../MicroPouch/data/metadata/MicroPouch_DATA_2022-06-21_1300.csv", delim = ";") %>% 
   mutate(project = "MP") %>% 
   fill(randomization_group)
 
-metadata_op <- read_delim("../data/metadata/MicroPouchOpen_DATA_2022-06-21_1303.csv", delim = ";") %>% 
+metadata_op <- read_delim("../../../MicroPouch/data/metadata/MicroPouchOpen_DATA_2022-06-21_1303.csv", delim = ";") %>% 
   mutate(project = "OP") %>% #For patient 007 the pdai score is duplicated
   mutate(pdai_c1 = NA,
          pdai_c2 = NA,
          pdai_c3 = NA,
          pdai_c4 = NA)
 
-metadata_np <- read_delim("../data/metadata/MicroPouchNP_DATA_2022-06-21_1303.csv", delim = ";") %>% 
+metadata_np <- read_delim("../../../MicroPouch/data/metadata/MicroPouchNP_DATA_2022-06-21_1303.csv", delim = ";") %>% 
   mutate(project = "NP") %>% 
   mutate(pdai_c1 = NA,
          pdai_c2 = NA,
@@ -485,7 +483,7 @@ m_tmp <- m_deselect %>%
 
 
 ```{r}
-metadata_fmt <- read_dta("../data/metadata/stata/metadata_fmt.dta")
+metadata_fmt <- read_dta("../../../MicroPouch/data/metadata/stata/metadata_fmt.dta")
 ```
 
 
@@ -515,7 +513,7 @@ d_fmt_renaming <- d_fmt_event_filter %>%
 
 ```{r}
 d_fmt_no_NA <- d_fmt_renaming %>% 
-  filter(if_any(.cols = 4:131,.fns = ~!is.na(.)))
+  filter(if_any(.cols = 4:130,.fns = ~!is.na(.)))
 ```
 
 
@@ -525,7 +523,7 @@ d_fmt_no_NA <- d_fmt_renaming %>%
 ## Donor Batch Overview and Barcode
 ### Load Barcodes
 ```{r}
-barcode_metadata <- read_csv("../data/metadata/csv/barcode_metadata.csv")
+barcode_metadata <- read_csv("../../../MicroPouch/data/metadata/csv/barcode_metadata.csv")
 ```
 
 
@@ -534,7 +532,7 @@ barcode_metadata <- read_csv("../data/metadata/csv/barcode_metadata.csv")
 
 A donor batch is associated with a date and a donor number
 ```{r}
-DoBa_overview <- read_csv("../data/metadata/csv/DoBa_oversigt.csv")
+DoBa_overview <- read_csv("../../../MicroPouch/data/metadata/csv/DoBa_oversigt.csv")
 
 DoBa_o_c <- DoBa_overview %>%
   mutate(Donor = gsub("MTKF ", "do", Donor),
@@ -578,7 +576,7 @@ DoBa <- barcode_metadata %>%
 
 
 ```{r}
-PaDo_overview <- read_csv("../data/metadata/MicroPouch patient donor batch oversigt april2022.csv")
+PaDo_overview <- read_csv("../../../MicroPouch/data/metadata/MicroPouch patient donor batch oversigt april2022.csv")
 
 PaDo_c <- PaDo_overview %>%
   mutate(MicroPouch_NP = ifelse(grepl("(np)", Patient),T, F),
@@ -635,7 +633,7 @@ Thereafter I need to join these tables, and connect them with the EXT_conc file.
 > I have changed value pt001, kontrol30dg, 05.11.1 -> 05.11.19
 
 ```{r}
-PaPr_overview <- read_csv("../data/metadata/csv/PaPr_overview.csv")
+PaPr_overview <- read_csv("../../../MicroPouch/data/metadata/csv/PaPr_overview.csv")
 
 
 PaPr_c <- PaPr_overview %>%
@@ -674,7 +672,7 @@ PaPr_l <- PaPr_c %>%
 * relocate kontrol_30dg
 * make long format and change patient_batch.
 ```{r}
-PaOP_overview <- read_csv("../data/metadata/csv/PaOP_overview.csv")
+PaOP_overview <- read_csv("../../../MicroPouch/data/metadata/csv/PaOP_overview.csv")
 
 
 PaOP_c <- PaOP_overview %>%
@@ -710,7 +708,7 @@ PaOP_l <- PaOP_c %>%
 * make long format and change patient_batch.
 
 ```{r}
-PaNP_overview <- read_csv("../data/metadata/csv/PaNP_overview.csv")
+PaNP_overview <- read_csv("../../../MicroPouch/data/metadata/csv/PaNP_overview.csv")
 
 
 PaNP_c <- PaNP_overview %>%
@@ -771,7 +769,7 @@ d_overview <- bind_rows(PaPr_l, PaOP_l, PaNP_l) %>%
 ext_conc contains the extraction conc for each sample.
 
 ```{r}
-ext_conc <- read_csv("../data/metagenomes_lab/220531_metagenome_libraries.csv")
+ext_conc <- read_csv("../../../MicroPouch/data/metagenomes_lab/220531_metagenome_libraries.csv")
 
 d_ext <- full_join(d_overview, ext_conc, by = c("patient", "fecal_donation_number", "project")) %>% 
   mutate(patient = as.factor(patient),
