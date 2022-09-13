@@ -17,6 +17,7 @@ library(janitor)
 library(ggpubr)
 library(lubridate)
 library(haven)
+library(labelled)
 ```
 
 
@@ -29,14 +30,14 @@ Loading metadata csv files - downloaded from REDcap
 
 
 ```{r}
-metadata <- read_dta("../data/metadata/stata/metadata_mp.dta") %>% 
+metadata <- read_dta("../../../MicroPouch/data/metadata/stata/metadata_mp.dta") %>% 
   mutate(project = "MP") %>% 
   fill(randomization_group)
 
-metadata_op <- read_dta("../data/metadata/stata/metadata_op.dta") %>% 
+metadata_op <- read_dta("../../../MicroPouch/data/metadata/stata/metadata_op.dta") %>% 
   mutate(project = "OP")
 
-metadata_np <- read_dta("../data/metadata/stata/metadata_np.dta") %>% 
+metadata_np <- read_dta("../../../MicroPouch/data/metadata/stata/metadata_np.dta") %>% 
   mutate(project = "NP") %>% 
   rename(study_id = record_id)
 
@@ -201,12 +202,17 @@ d_fmt_renaming <- d_fmt_event_filter %>%
 
 ```{r}
 d_fmt_no_NA <- d_fmt_renaming %>% 
-  filter(redcap_repeat_instrument %in% c("info", "diet_questionnaire"))
+  filter(redcap_repeat_instrument %in% c("info", "diet_questionnaire")) %>% 
+  group_by(id) %>% 
+  filter(n_distinct(redcap_repeat_instrument) == 2)
 
 
 d_fmt_no_NA
 ```
 
+```{r}
+unique(filter(d_full, project == "donor_screening")$id)
+```
 
 
 
