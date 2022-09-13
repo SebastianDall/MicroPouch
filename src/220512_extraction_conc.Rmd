@@ -104,6 +104,8 @@ ext_lib <- full_join(ext_conc_c, lib_conc_c, by = c("rack_barcode", "tube_row", 
 d_ext <- full_join(ext_link, ext_lib, by = c("rack_barcode", "tube_row", "tube_column"))
 ```
 
+Creates a file with extraction and library concentrations
+
 ```{r}
 #write_csv(d_ext, "../data/EXT_conc/EXT_ALL.csv")
 ```
