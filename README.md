@@ -1,4 +1,6 @@
 # MicroPouch
+Reading guide!
+
 
 ## DNA extraction
 ### Linking of barcodes
@@ -13,8 +15,8 @@ Not all metagenomes turned out good. For some plates many samples failed even th
 The script also visualizes the plates before and after correction.
 
 ## Metadata
-The `MicroPouch_metadata.Rmd` loads the metadata that is associated with the samples. That is not barcodes. It is the FMT/placebo information, which patient received FMT from which donor etc.
+The `MicroPouch_metadata.Rmd` loads the metadata that is associated with the samples. Metadata is loaded for all MicroPouch branches; MicroPouch, MicroPouchNP, and MicroPouchOP. The script will produce a file called `/data/metadata/csv/full_metadata.csv` that contains all the metadata associated with the project. This file is subsequently used for the microbiome analysis.
 
-### Sample Metadata
-The script will produce a file called `sample_metadata.csv` that merges the barcode metadata/position with the actual sample_metadata.
+## MetaPhlAn3
+All samples containing more than 5M reads after quality filtering and removal of the human genome, hg38, were taxonomically classified with MetaPhlAn3.
 
