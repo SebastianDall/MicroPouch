@@ -1,0 +1,344 @@
+---
+title: "heatmap"
+author: "Sebastian Mølvang Dall"
+date: '2022-08-10'
+output: html_document
+---
+
+## Loading libraries
+
+```{r}
+library(tidyverse)
+library(ggpubr)
+source("functions/metadata_functions.R")
+```
+
+## Loading Data
+
+```{r}
+metadata <- load_metadata()
+
+metaphlan <- load_metaphlan(taxonomic_level = "genus")
+```
+
+```{r}
+metadata_all <- prepare_metadata(metadata)
+
+metadata_in_metaphlan <- prepare_metadata(metadata) %>% 
+  filter(LibID %in% colnames(metaphlan))
+
+
+metaphlan_long <- metaphlan %>% 
+  select(-NCBI_tax_id) %>% 
+  pivot_longer(-clade_name, names_to = "LibID") %>% 
+  arrange(LibID)
+```
+
+### Filtering for relevant patients and donors
+
+Just as in alpha_beta_diversity.rmd, the donors are filtered such that only donors used for the available patients are used.
+
+```{r}
+stages = stages_pre_post
+
+
+metadata_relevant <- IsolateProjectAndDonor(metadata_in_metaphlan, project_filter = "MP") %>% 
+  mutate(sample_group = paste0(group, "_", x_axis),
+         sample_group = if_else(str_detect(sample_group, "FMT_Donor"), str_remove(sample_group, "FMT_"), sample_group)) %>% 
+  filter(x_axis %in% stages) %>% 
+  group_by(id) %>% 
+  filter(n_distinct(x_axis) == 2 | x_axis == "Donor")
+
+```
+
+##### NP only
+```{r}
+stages = stages_all
+
+metadata_relevant <- IsolateProjectAndDonor(metadata_in_metaphlan, project_filter = "NP") %>% 
+  mutate(sample_group = paste0(group, "_", x_axis),
+         sample_group = if_else(str_detect(sample_group, "FMT_Donor"), str_remove(sample_group, "FMT_"), sample_group)) %>% 
+  filter(x_axis %in% stages) 
+```
+
+
+#### Adding taxonomy to metadata table
+
+```{r}
+metadata_relevant_with_tax <- left_join(metadata_relevant, metaphlan_long)
+```
+
+##### Function for visualizing patient with donor pairings.
+
+> Filtering for most abundant taxa could be made better. Right now it takes most abundant across patient and donors.
+
+```{r}
+source("functions/bioinformatics.R")
+```
+
+```{r}
+print(unique(filter(metadata_all, project == "MP" & group == "FMT")$id))
+print(unique(filter(metadata_in_metaphlan, project == "MP" & group == "FMT")$id))
+
+PatientDonorHeatmap(metadata_with_tax = metadata_relevant_with_tax, patient = "pt001", project_filter = "MP")
+
+
+PatientDonorHeatmap(metadata_relevant_with_tax, patient = "pt027", project_filter = "MP")
+
+
+PatientDonorHeatmap(metadata_relevant_with_tax, patient = "pt028", project_filter = "MP")
+
+
+
+```
+
+
+## heatmap visualization
+
+### Donor, Pre, heatmap
+
+#### Top genera
+
+```{r}
+metadata_weigth <- metadata_relevant_with_tax %>% 
+  mutate(sample_group = paste0(x_axis, " ", group),
+         sample_group = if_else(str_detect(sample_group, "Donor FMT"), str_remove(sample_group, " FMT"), sample_group)) %>% 
+  group_by(donor_batch, sample_group) %>% 
+  mutate(hellinger = sqrt(value/sum(value)),
+         sum = sum(value)) %>% 
+  ungroup()
+
+
+top_genera_weighted <- metadata_weigth %>%
+  filter(x_axis %in% c("Pre", "Donor")) %>% 
+  group_by(id, sample_group, clade_name) %>% 
+  summarise(hellinger = mean(hellinger)) %>% 
+  group_by(sample_group) %>% 
+  mutate(weight = 1/n()) %>% 
+  group_by(clade_name) %>% 
+  summarise(mean_hellinger = weighted.mean(hellinger, weight)) %>% 
+  arrange(desc(mean_hellinger)) %>% 
+  head(35)
+
+top_genera_weighted_donor <- metadata_weigth %>%
+  filter(clade_name %in% top_genera_weighted$clade_name, x_axis == "Donor") %>% 
+  group_by(id, clade_name) %>% 
+  summarise(hellinger = mean(hellinger)) %>% 
+  group_by(clade_name) %>% 
+  summarise(mean_hellinger = mean(hellinger)) %>% 
+  arrange(desc(mean_hellinger))
+
+```
+
+
+```{r}
+l %>% 
+  group_by(group) %>% 
+  mutate(n = 1/n(),
+         mean = mean(value)) %>% 
+  ungroup() %>% 
+  summarise(mean = weighted.mean(value, n))
+```
+
+
+#### hclust
+
+```{r}
+t_metaphlan <- metaphlan %>% 
+  select(-NCBI_tax_id) %>% 
+  pivot_longer(-clade_name, names_to = "LibID") %>% 
+  pivot_wider(names_from = clade_name, values_from = value) %>% 
+  filter(LibID %in% metadata_weigth$LibID) %>% 
+  arrange(LibID) %>% 
+  column_to_rownames(var = "LibID") %>% 
+  as.data.frame()
+
+
+
+t_metaphlan_id <- metadata_weigth %>% 
+  filter(str_detect(sample_group, "Pre") | sample_group == "Donor") %>% 
+  arrange(LibID) %>% 
+  select(id, LibID, group, sample_group, x_axis) %>% 
+  distinct(LibID, .keep_all = T) %>% 
+  left_join(
+    rownames_to_column(t_metaphlan,"LibID")
+  )
+  
+t_metaphlan_long_id_donor_avg <- t_metaphlan_id %>% 
+  pivot_longer(!id:x_axis, names_to = "clade_name", values_to = "relative_abundance") %>% 
+  group_by(id, x_axis, clade_name) %>% 
+  summarise(relative_abundance = mean(relative_abundance))
+
+t_metaphlan_wide_id_donor_avg <- t_metaphlan_long_id_donor_avg %>% 
+  ungroup() %>%
+  select(!x_axis) %>%
+  pivot_wider(names_from = clade_name, values_from = relative_abundance) %>% 
+  column_to_rownames("id")
+
+bray_curtis_dist <- vegan::vegdist(vegan::decostand(t_metaphlan_wide_id_donor_avg, method = "hellinger"))
+
+hclust_ward <- hclust(bray_curtis_dist, method = "ward.D2")
+
+ward_dendogram <- as.dendrogram(hclust_ward)
+ward_order <- order.dendrogram(ward_dendogram)
+
+plot(ward_dendogram)
+
+
+id_cluster_order <- t_metaphlan_long_id_donor_avg %>% 
+  left_join(metadata_weigth) %>% 
+  mutate(
+    id = factor(
+      id,
+      levels = hclust_ward$labels[ward_order]
+    )
+  ) %>% 
+  group_by(id, clade_name, sample_group) %>% 
+  distinct(id, .keep_all = T)
+  
+```
+
+
+### Donor / Pre heatmap
+
+Pre and donor heatmap clustered with hclust ward.D2 method. donor batches have been grouped by average relative abundance.
+
+```{r}
+
+gg_heat_inc <- id_cluster_order %>% 
+  filter(clade_name %in% top_genera_weighted$clade_name) %>% 
+  mutate(clade_name = factor(clade_name, levels = top_genera_weighted_donor$clade_name),
+         x_axis = factor(x_axis, levels = c("Pre", "Donor")),
+         sample_group = factor(sample_group, levels = c("Pre FMT", "Pre placebo", "Donor")),
+         relative_abundance = if_else(relative_abundance < 10, round(relative_abundance, 1), floor(relative_abundance))) %>% 
+  ggplot(aes(x = id, y = fct_rev(clade_name),  fill = hellinger, label = relative_abundance)) +
+    geom_tile(color = "white") +
+    scale_fill_gradient(low = "white", high = "red") +
+    geom_text(color = "black") +
+    facet_grid(. ~ sample_group, scales = "free_x", space = "free") +
+    labs(x = "", y= "") +
+    plot_theme +
+    theme(axis.text.x = element_text(angle = 90, vjust = -0.0001),
+          legend.position = "none")
+gg_heat_inc
+
+ggsave("../figures/heatmap_pre_donor_hellinger.png", device = "png", width = 12, height = 10)
+```
+
+
+
+
+### Post heatmap
+
+
+```{r}
+
+metadata_tax_post <- metadata_weigth %>% 
+  filter(x_axis == "Post") %>% 
+  arrange(LibID)
+
+
+
+t_metaphlan_post_id <- metadata_tax_post %>%  
+  select(id, LibID, group, sample_group,x_axis) %>% 
+  distinct(LibID, .keep_all = T) %>% 
+  left_join(
+    rownames_to_column(t_metaphlan,"LibID")
+  ) %>% 
+  select(!LibID: x_axis) %>% 
+  column_to_rownames("id")
+  
+```
+
+```{r}
+post_id_cluster_order <- metadata_tax_post %>% 
+  mutate(
+    id = factor(
+      id,
+      levels = str_subset(hclust_ward$labels[ward_order], "do", negate = T)
+    )
+  )
+
+
+post_id_cluster_order %>% 
+  filter(clade_name %in% top_genera_weighted$clade_name) %>% 
+  mutate(clade_name = factor(clade_name, levels = top_genera_weighted_donor$clade_name),
+         sample_group = factor(sample_group, levels = c("Post FMT", "Post placebo")),
+         value = if_else(value < 10, round(value, 1), floor(value))) %>% 
+  ggplot(aes(x = id, y = fct_rev(clade_name),  fill = hellinger, label = value)) +
+    geom_tile(color = "white") +
+    scale_fill_gradient(low = "white", high = "red") +
+    geom_text(color = "black") +
+    facet_grid(. ~ sample_group, scales = "free_x", space = "free") +
+    labs(x = "", y= "") +
+    plot_theme +
+    theme(axis.text.x = element_text(angle = 90, vjust = -0.0001))
+
+
+ggsave("../figures/heatmap_post_hellinger.png", device = "png", width = 9, height = 10)
+
+```
+
+
+
+```{r}
+gg_heat_post <- post_id_cluster_order %>% 
+  filter(clade_name %in% top_genera_weighted$clade_name) %>% 
+  mutate(clade_name = factor(clade_name, levels = top_genera_weighted_donor$clade_name),
+         sample_group = factor(sample_group, levels = c("Post FMT", "Post placebo")),
+         value = if_else(value < 10, round(value, 1), floor(value))) %>% 
+  ggplot(aes(x = id, y = fct_rev(clade_name),  fill = hellinger, label = value)) +
+    geom_tile(color = "white") +
+    scale_fill_gradient(low = "white", high = "red") +
+    geom_text(color = "black") +
+    facet_grid(. ~ sample_group, scales = "free_x", space = "free") +
+    labs(x = "", y= "") +
+    plot_theme +
+    theme(axis.text.x = element_text(angle = 90, vjust = -0.0001),
+          axis.text.y = element_blank(),
+          axis.ticks.y = element_blank())
+```
+
+
+
+```{r}
+ggarrange(gg_heat_inc, gg_heat_post, ncol = 2, widths = c(3,2))
+
+ggsave("../figures/heatmap_pre_post_hellinger.png", device = "png", width = 21, height = 10)
+```
+
+
+
+## NP heatmap 
+```{r}
+labels <- c("Pre", paste0("Day ", c(5,10,16,28)), "Post", paste0("Follow-up ", c(1,3,6, 12), "M"), "Donor")
+
+metadata_weigth %>% 
+  filter(clade_name %in% top_genera_weighted$clade_name) %>% 
+  group_by(id, x_axis, clade_name) %>% 
+  summarise(hellinger = mean(hellinger),
+            value = mean(value)) %>% 
+  mutate(
+     clade_name = factor(clade_name, levels = top_genera_weighted_donor$clade_name),
+     x_axis = factor(x_axis, levels = stages, labels = labels ),
+     value = if_else(value < 10, round(value, 1), floor(value)),
+     id = factor(id, levels = c( "pt001", "pt002", "pt006", "asym004"))
+     ) %>%
+  ggplot(aes(x = x_axis, y = fct_rev(clade_name),  fill = hellinger, label = value)) +
+    geom_tile(color = "white") +
+    scale_fill_gradient(low = "white", high = "red") +
+    geom_text(color = "black") +
+    facet_grid(. ~ id, scales = "free_x", space = "free") +
+    labs(x = "", y= "") +
+    plot_theme +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.35, hjust = 1),
+          axis.text = element_text(size = 12))
+
+ggsave("../figures/heatmap_NP_hellinger.png", device = "png", width = 15, height = 10)
+```
+
+
+
+
+
+
