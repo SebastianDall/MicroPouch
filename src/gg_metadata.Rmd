@@ -38,7 +38,7 @@ stage_fct <- c("inclusion",
 ### Load metadata file
 
 ```{r}
-m <- read_delim("../data/metadata/csv/full_metadata.csv", delim = ";")
+m <- read_delim("../../../MicroPouch/data/metadata/csv/full_metadata.csv", delim = ";")
 ```
 
 #### patient samples
@@ -109,7 +109,7 @@ m %>%
          project != "OP") %>% 
   group_by(id) %>%
   filter(n_distinct(stage) == 2) %>% 
-  mutate(stage = factor(stage, levels = c("inclusion", "followup_30d"), labels = c("inclusion", "followup_30d"))) %>% 
+  mutate(stage = factor(stage, levels = c("inclusion", "followup_30d"), labels = c("Pre", "Post"))) %>% 
   ggplot(aes(x = stage, y = pdai_score, 
              fill = stage))+
   geom_boxplot(outlier.size = 0) +
@@ -119,6 +119,8 @@ m %>%
   theme_bw() +
   theme(legend.position = "none") +
   scale_y_continuous(breaks = integer_breaks())
+
+ggsave("../figures/pdai_score.png", device = "png")
   
 ```
 
