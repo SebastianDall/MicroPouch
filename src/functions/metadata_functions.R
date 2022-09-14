@@ -11,14 +11,14 @@ mutate_x_axis_factor <- function(df) {
 }
 
 load_metadata <- function() {
-    metadata <- read_delim("../../../MicroPouch/data/metadata/csv/full_metadata.csv", delim = ";")  
+    metadata <- read_delim("../data/metadata/csv/full_metadata.csv", delim = ";")  
     return(metadata)
   
 }
 
 
 load_metaphlan <- function(taxonomic_level = "genus") {
-  metaphlan <- read_delim(paste0("../../../MicroPouch/data/metaphlan3/MetaPhlAn3_Subsample_5000000_", taxonomic_level), delim = "\t")
+  metaphlan <- read_delim(paste0("../data/metaphlan3/MetaPhlAn3_Subsample_5000000_", taxonomic_level), delim = "\t")
   return(metaphlan)
   
 }
