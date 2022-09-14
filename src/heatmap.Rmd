@@ -15,10 +15,14 @@ source("functions/metadata_functions.R")
 
 ## Loading Data
 
+**Important!: If the MicroPouchNP heatmap is in the bottom. Follow the headers**
+
 ```{r}
 metadata <- load_metadata()
 
 metaphlan <- load_metaphlan(taxonomic_level = "genus")
+
+project_filter = "NP"
 ```
 
 ```{r}
@@ -39,28 +43,28 @@ metaphlan_long <- metaphlan %>%
 Just as in alpha_beta_diversity.rmd, the donors are filtered such that only donors used for the available patients are used.
 
 ```{r}
-stages = stages_pre_post
+if (project_filter == "MP") {
+  stages = stages_pre_post
 
 
-metadata_relevant <- IsolateProjectAndDonor(metadata_in_metaphlan, project_filter = "MP") %>% 
-  mutate(sample_group = paste0(group, "_", x_axis),
-         sample_group = if_else(str_detect(sample_group, "FMT_Donor"), str_remove(sample_group, "FMT_"), sample_group)) %>% 
-  filter(x_axis %in% stages) %>% 
-  group_by(id) %>% 
-  filter(n_distinct(x_axis) == 2 | x_axis == "Donor")
+  metadata_relevant <- IsolateProjectAndDonor(metadata_in_metaphlan, project_filter = "MP") %>% 
+    mutate(sample_group = paste0(group, "_", x_axis),
+           sample_group = if_else(str_detect(sample_group, "FMT_Donor"), str_remove(sample_group, "FMT_"), sample_group)) %>% 
+    filter(x_axis %in% stages) %>% 
+    group_by(id) %>% 
+    filter(n_distinct(x_axis) == 2 | x_axis == "Donor")
+
+} else if (project_filter== "NP") {
+  stages = stages_all
+
+  metadata_relevant <- IsolateProjectAndDonor(metadata_in_metaphlan, project_filter = "NP") %>% 
+    mutate(sample_group = paste0(group, "_", x_axis),
+           sample_group = if_else(str_detect(sample_group, "FMT_Donor"), str_remove(sample_group, "FMT_"), sample_group)) %>% 
+    filter(x_axis %in% stages) 
+}
+
 
 ```
-
-##### NP only
-```{r}
-stages = stages_all
-
-metadata_relevant <- IsolateProjectAndDonor(metadata_in_metaphlan, project_filter = "NP") %>% 
-  mutate(sample_group = paste0(group, "_", x_axis),
-         sample_group = if_else(str_detect(sample_group, "FMT_Donor"), str_remove(sample_group, "FMT_"), sample_group)) %>% 
-  filter(x_axis %in% stages) 
-```
-
 
 #### Adding taxonomy to metadata table
 
@@ -68,36 +72,13 @@ metadata_relevant <- IsolateProjectAndDonor(metadata_in_metaphlan, project_filte
 metadata_relevant_with_tax <- left_join(metadata_relevant, metaphlan_long)
 ```
 
-##### Function for visualizing patient with donor pairings.
-
-> Filtering for most abundant taxa could be made better. Right now it takes most abundant across patient and donors.
-
-```{r}
-source("functions/bioinformatics.R")
-```
-
-```{r}
-print(unique(filter(metadata_all, project == "MP" & group == "FMT")$id))
-print(unique(filter(metadata_in_metaphlan, project == "MP" & group == "FMT")$id))
-
-PatientDonorHeatmap(metadata_with_tax = metadata_relevant_with_tax, patient = "pt001", project_filter = "MP")
-
-
-PatientDonorHeatmap(metadata_relevant_with_tax, patient = "pt027", project_filter = "MP")
-
-
-PatientDonorHeatmap(metadata_relevant_with_tax, patient = "pt028", project_filter = "MP")
-
-
-
-```
-
-
 ## heatmap visualization
 
 ### Donor, Pre, heatmap
 
 #### Top genera
+This chunk finds the most abundant genera by calculating the weighted mean of each taxonomic clade in each group, `Pre FMT`, `Pre Placebo`, and `Donor`. Each group is weighted by the inverse number of samples in each group. Since there are the least amount of samples in the `Donor` group their relative abundance will have a higher weight in the mean. The purpose is to find engraftment from the donor microbiome to the patients therefore the `Donor` microbiome gets a higher weight. In the end the top genera will be arranged according to their prevalence in the `Donor` group. 
+
 
 ```{r}
 metadata_weigth <- metadata_relevant_with_tax %>% 
@@ -131,17 +112,10 @@ top_genera_weighted_donor <- metadata_weigth %>%
 ```
 
 
-```{r}
-l %>% 
-  group_by(group) %>% 
-  mutate(n = 1/n(),
-         mean = mean(value)) %>% 
-  ungroup() %>% 
-  summarise(mean = weighted.mean(value, n))
-```
-
-
 #### hclust
+
+For better visualization purposes the samples pre treatment are clustered based on their microbiome. Here a distance matrix using Bray-Curtis is calculated on Hellinger transformed relative abundances and clustered using the "ward D.2" algorithm, which tries to minimize within cluster variance using sum of squared(D2) errors.
+
 
 ```{r}
 t_metaphlan <- metaphlan %>% 
@@ -198,7 +172,7 @@ id_cluster_order <- t_metaphlan_long_id_donor_avg %>%
   
 ```
 
-
+## MP heatmaps
 ### Donor / Pre heatmap
 
 Pre and donor heatmap clustered with hclust ward.D2 method. donor batches have been grouped by average relative abundance.
@@ -280,7 +254,7 @@ ggsave("../figures/heatmap_post_hellinger.png", device = "png", width = 9, heigh
 ```
 
 
-
+This aligns Pre and post heatmap for visualisation.
 ```{r}
 gg_heat_post <- post_id_cluster_order %>% 
   filter(clade_name %in% top_genera_weighted$clade_name) %>% 
@@ -297,14 +271,10 @@ gg_heat_post <- post_id_cluster_order %>%
     theme(axis.text.x = element_text(angle = 90, vjust = -0.0001),
           axis.text.y = element_blank(),
           axis.ticks.y = element_blank())
-```
-
-
-
-```{r}
-ggarrange(gg_heat_inc, gg_heat_post, ncol = 2, widths = c(3,2))
-
-ggsave("../figures/heatmap_pre_post_hellinger.png", device = "png", width = 21, height = 10)
+# 
+# ggarrange(gg_heat_inc, gg_heat_post, ncol = 2, widths = c(3,2))
+# 
+# ggsave("../figures/heatmap_pre_post_hellinger.png", device = "png", width = 21, height = 10)
 ```
 
 
@@ -359,9 +329,10 @@ metadata_weigth %>%
     theme(axis.text.x = element_text(angle = 90, vjust = 0.35, hjust = 1),
           axis.text = element_text(size = 12))
 
-ggsave("../figures/NP_heatmap_hellinger_alldonorbatches.png", device = "png", width = 20, height = 10)
+#ggsave("../figures/NP_heatmap_hellinger_alldonorbatches.png", device = "png", width = 20, height = 10)
 ```
 
+### Treatment schema
 
 ```{r}
 donorTreatment <- metadata_relevant %>% 
