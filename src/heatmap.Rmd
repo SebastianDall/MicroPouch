@@ -22,7 +22,7 @@ metadata <- load_metadata()
 
 metaphlan <- load_metaphlan(taxonomic_level = "genus")
 
-project_filter = "NP"
+project_filter = "MP"
 ```
 
 ```{r}
@@ -196,7 +196,7 @@ gg_heat_inc <- id_cluster_order %>%
           legend.position = "none")
 gg_heat_inc
 
-ggsave("../figures/heatmap_pre_donor_hellinger.png", device = "png", width = 12, height = 10)
+#ggsave("../figures/heatmap_pre_donor_hellinger.png", device = "png", width = 12, height = 10)
 ```
 
 
