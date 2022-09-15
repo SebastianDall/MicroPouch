@@ -152,7 +152,7 @@ rda_ord_pt$plot +
 #ggsave("../figures/amp_rda_hellinger_no_donor.png", device = "png")
 ```
 
-Next chunck calculates the difference between centroids for groups in the RDA.
+Next chunck calculates the difference between centroids for groups in the PCA.
 `envfit()` calculates the regression of supplementary variables on the ordination axes of unconstrained ordination. Furthermore `envfit()` can test the significance of this test by permutation (that is shuffling of the supplementary variable).
 
 For factors significance of the fit is calculated by testing if the variation within centroids are significantly different from total spread of the data. That is $$r^{2} = 1 - \frac{ss_w}{ss_t} $$, where $$ss_{w}$$ and $$ss_t$$ are within-group and total sums of squares, respectively. To test if this fit is significant `envfit()` and `pairwise.factorfit()` uses permutations of the data to test if this explanation of variance is significant.
