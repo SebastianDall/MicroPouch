@@ -11,6 +11,7 @@ output: html_document
 ```{r}
 library(tidyverse)
 library(ggpubr)
+source("functions/metadata_functions.R")
 ```
 
 
@@ -38,7 +39,7 @@ stage_fct <- c("inclusion",
 ### Load metadata file
 
 ```{r}
-m <- read_delim("../../../MicroPouch/data/metadata/csv/full_metadata.csv", delim = ";")
+m <- load_metadata()
 ```
 
 #### patient samples
@@ -106,21 +107,21 @@ integer_breaks <- function(n = 5, ...) {
 m %>% 
   filter(stage %in% c("inclusion", "followup_30d"),
          str_detect(id, "pt"),
-         project != "OP") %>% 
+         project == "MP") %>% 
   group_by(id) %>%
   filter(n_distinct(stage) == 2) %>% 
   mutate(stage = factor(stage, levels = c("inclusion", "followup_30d"), labels = c("Pre", "Post"))) %>% 
-  ggplot(aes(x = stage, y = pdai_score, 
-             fill = stage))+
-  geom_boxplot(outlier.size = 0) +
-  geom_point(aes(group = id), position = position_dodge(0.2)) + #aes(x = as.factor(redcap_event_name), y = pdai_score) 
-  geom_line(aes(group = id), position = position_dodge(0.2)) + 
-  facet_wrap(project~group)+
-  theme_bw() +
+  ggplot(aes(x = stage, y = pdai_score, color = stage)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_line(aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) + 
+  geom_point(aes(group = id), size = 2, position = position_dodge(0.2)) + 
+  facet_wrap(.~group)+
+  plot_theme + 
+  labs(y = "PDAI Score") +
   theme(legend.position = "none") +
   scale_y_continuous(breaks = integer_breaks())
 
-ggsave("../figures/pdai_score.png", device = "png")
+ggsave("../figures/pdai_score.png", device = "png", width = 8, height = 6)
   
 ```
 
@@ -131,7 +132,7 @@ m_pt %>%
   filter(stage %in% c("inclusion", "followup_30d"),
          project == "MP") %>% 
   ggplot(aes(x = ext_conc, y = pdai_score, color = stage, shape = stage)) +
-  geom_line(aes(group = id), color = "black") +
+  #geom_line(aes(group = id), color = "black") +
   geom_point(size = 3) + 
   scale_y_continuous(breaks = integer_breaks())
 ```
