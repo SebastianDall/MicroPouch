@@ -11,7 +11,8 @@ mutate_x_axis_factor <- function(df) {
 }
 
 load_metadata <- function() {
-    metadata <- read_delim("../data/metadata/csv/full_metadata.csv", delim = ";")  
+    #metadata <- read_delim("../data/metadata/csv/full_metadata.csv", delim = ";")
+    metadata <- read_delim("../data/metadata/csv/selected_metadata.csv", delim = ";")  
     return(metadata)
   
 }
@@ -28,9 +29,9 @@ load_metaphlan <- function(taxonomic_level = "genus") {
 prepare_metadata <- function(metadata) {
   
   metadata_all <- metadata %>% 
-  mutate(LibID = str_replace(LibID, "LIB", library_plate)) %>% 
+  #mutate(LibID = str_replace(LibID, "LIB", library_plate)) %>% 
   #There was a OneNote library sample sheet error, which means all LIB00007-MP013 are called LIB00007-MP014.
-  mutate(LibID = if_else(library_plate == "LIB00007", str_replace(LibID, "MP013", "MP014"), LibID)) %>% 
+  #mutate(LibID = if_else(library_plate == "LIB00007", str_replace(LibID, "MP013", "MP014"), LibID)) %>% 
   select(id, sample_barcode, LibID, stage, project, group, donor, batch_1:batch_3, fecal_donation_number, fecal_batch_date, pdai_score) %>% 
   arrange(LibID)
   
