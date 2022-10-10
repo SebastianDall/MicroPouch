@@ -45,9 +45,11 @@ m <- load_metadata()
 #### patient samples
 ```{r}
 m_pt <- m %>% 
-  filter(is_sample, project %in% c("MP", "OP", "NP")) %>% 
+  filter(!is.na(LibID), project %in% c("MP", "OP", "NP")) %>% 
   mutate(stage = factor(stage, levels = stage_fct, labels = stage_fct),
-         pool_ng = round(pool_ng, 2))
+         pool_ng = round(pool_ng, 2)) %>% 
+  arrange(id, project) %>% 
+  fill(group, .direction = "down")
 ```
 
 
@@ -68,6 +70,46 @@ m_pt %>%
   labs(y ="", x= "")
   
 ```
+
+
+## DNA extraction concentration
+```{r}
+m_pt %>% 
+  mutate(DNA_ng = round(ext_conc*80),
+         above100 = DNA_ng >= 100) %>% 
+  ggplot(aes(x = stage, y = id, fill = above100, label = DNA_ng)) + 
+  geom_tile(color = "white") + 
+  geom_text(color = "white") + 
+  scale_fill_manual(values = c("red4", "blue4")) + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45,
+                                   hjust = 1)) +
+  facet_grid(group ~project, scales = "free", space = "free") + 
+  labs(y ="", x= "")
+  
+```
+
+
+
+## DNA extraction donor
+
+```{r}
+m %>% 
+  filter(project == "donor_batch") %>% 
+  mutate(DNA_ng = round(ext_conc*80),
+         above100 = DNA_ng >= 100,
+         donor_batch = paste0(id, "_", fecal_donation_number)) %>%
+  ggplot(aes(x = as.factor(fecal_donation_number), y = id, fill = ext_conc, label = DNA_ng)) + 
+  geom_tile(color = "white") + 
+  geom_text(color = "white") + 
+  scale_fill_gradient(low = "red4", high = "green4") + 
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 45,
+                                   hjust = 1)) +
+  labs(y ="", x= "")
+```
+
+
 
 
 
