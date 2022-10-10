@@ -97,7 +97,6 @@ d_pre_post <- d %>%
 #MP
 ### Ordination
 
-
 ```{r}
 pca <- d %>% 
   amp_subset_samples(LibID %in% metadata_pre_post$LibID | x_axis == "Donor") %>% 
@@ -105,10 +104,12 @@ pca <- d %>%
   type = "pca",
   transform = "hellinger",
   sample_color_by = "sample_group",
+  sample_shape_by = "x_axis",
   species_plot = F,
   species_nlabels = 5,
   species_label_taxonomy = "Genus",
   filter_species = 0,
+  sample_plotly = "id",
   sample_colorframe = F
 ) + 
   geom_line(aes(group = id), color = "grey70") +
@@ -122,6 +123,7 @@ pca +
 
 #ggsave("../figures/amp_pca_hellinger_all.png", device = "png", width = 7, height = 5)
 ```
+
 
 
 ```{r}
@@ -151,6 +153,47 @@ rda_ord_pt$plot +
 
 #ggsave("../figures/amp_rda_hellinger_no_donor.png", device = "png")
 ```
+
+
+
+
+
+```{r}
+
+metadata_all_stages <- metadata_MP %>% 
+  filter(project %in% c("MP", "donor_batch"), x_axis %in% stages_all, group != "placebo") %>% 
+  mutate(x_axis = factor(x_axis, levels = stages_all)) %>% 
+  arrange(id, fecal_donation_number)
+
+d_MP_all <- amp_load(
+  otutable = otutable,
+  metadata = metadata_all_stages,
+  taxonomy = taxtable
+)
+
+
+
+d_MP_all %>% 
+  amp_ordinate(
+  type = "pca",
+  transform = "hellinger",
+  sample_color_by = "id",
+  sample_shape_by = "project",
+  #sample_plotly = "donor_batch",
+  species_plot = F,
+  species_nlabels = 5,
+  species_label_taxonomy = "Genus",
+  filter_species = 0,
+  sample_colorframe = F
+) +
+  geom_path(aes(group = id), color = "grey70")
+
+
+
+  
+```
+
+
 
 Next chunck calculates the difference between centroids for groups in the PCA.
 `envfit()` calculates the regression of supplementary variables on the ordination axes of unconstrained ordination. Furthermore `envfit()` can test the significance of this test by permutation (that is shuffling of the supplementary variable).
@@ -285,4 +328,70 @@ d_subset %>%
               normalise = F,
               tax_aggregate = "Genus")
 ```
+
+
+## MP + Asym
+
+```{r}
+metadata <- prepare_metadata(metadata) %>%
+  filter(LibID %in% colnames(metaphlan)) %>% 
+  relocate(LibID)
+
+
+metaphlan_otu <- metaphlan %>%
+ select(-NCBI_tax_id) %>%
+ select(clade_name, metadata$LibID) %>% 
+ mutate(OTU = paste0("OTU",row_number())) %>% 
+ relocate(OTU)
+
+otutable <- metaphlan_otu %>% 
+  select(-clade_name)
+
+d <- amp_load(
+  otutable = otutable,
+  metadata = metadata,
+  taxonomy = taxtable
+)
+
+```
+
+
+```{r}
+metadata_sub <- metadata %>% 
+  filter(LibID %in% metadata_MP$LibID | id == "asym004") %>% 
+  filter( stage %in% c(NA, "inclusion", "followup_30d"), project != "donor_screening", group %in% c(NA, "FMT")) %>% 
+  group_by(id) %>% 
+  filter(n() > 1)
+```
+
+
+
+
+
+```{r}
+pca <- d %>% 
+  amp_subset_samples(LibID %in% metadata_sub$LibID) %>% 
+  amp_ordinate(
+  type = "pca",
+  transform = "hellinger",
+  sample_color_by = "project",
+  sample_shape_by = "stage",
+  species_plot = F,
+  species_nlabels = 5,
+  species_label_taxonomy = "Genus",
+  filter_species = 0,
+  sample_colorframe = F
+) + 
+  geom_line(aes(group = id), color = "grey70") +
+  theme(legend.title = element_blank()) +
+  scale_color_brewer(palette = "Paired")
+
+pt014_do016 <- pca$data %>% 
+  filter(id == "pt014" & x_axis == "Post" | donor_batch == "do016_4")
+pca +
+  geom_text(data = pt014_do016, aes(x = PC1, y = PC2+0.04, label = id), color = "red", size = 3)
+
+ggsave("../figures/amp_pca_hellinger_fmt_donor.png", device = "png", width = 7, height = 5)
+```
+
 
