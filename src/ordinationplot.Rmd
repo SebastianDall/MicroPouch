@@ -347,11 +347,10 @@ metaphlan_otu <- metaphlan %>%
 otutable <- metaphlan_otu %>% 
   select(-clade_name)
 
-d <- amp_load(
-  otutable = otutable,
-  metadata = metadata,
-  taxonomy = taxtable
-)
+taxtable <- metaphlan_otu %>% 
+  select(OTU, clade_name) %>% 
+  separate(clade_name, sep = "\\|", into = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")) %>% 
+  relocate(OTU, .after = "Species")
 
 ```
 
@@ -360,36 +359,45 @@ d <- amp_load(
 metadata_sub <- metadata %>% 
   filter(LibID %in% metadata_MP$LibID | id == "asym004") %>% 
   filter( stage %in% c(NA, "inclusion", "followup_30d"), project != "donor_screening", group %in% c(NA, "FMT")) %>% 
+  mutate(project = if_else(project == "donor_batch",
+    if_else(str_detect(id, "asym"), "Asymp Pouch", "Healthy Donor"), project),
+    stage = if_else(!is.na(stage), stage, "Donor"),
+    project_stage = if_else(project == "MP", paste0(project," ", stage), project)) %>% 
   group_by(id) %>% 
   filter(n() > 1)
 ```
 
 
+```{r}
+d <- amp_load(
+  otutable = otutable,
+  metadata = metadata_sub,
+  taxonomy = taxtable
+)
 
+```
 
 
 ```{r}
 pca <- d %>% 
-  amp_subset_samples(LibID %in% metadata_sub$LibID) %>% 
   amp_ordinate(
   type = "pca",
   transform = "hellinger",
-  sample_color_by = "project",
+  sample_color_by = "project_stage",
   sample_shape_by = "stage",
-  species_plot = F,
+  species_plot = T,
   species_nlabels = 5,
   species_label_taxonomy = "Genus",
   filter_species = 0,
-  sample_colorframe = F
+  sample_colorframe = F,
+  sample_point_size = 3
 ) + 
   geom_line(aes(group = id), color = "grey70") +
   theme(legend.title = element_blank()) +
-  scale_color_brewer(palette = "Paired")
-
-pt014_do016 <- pca$data %>% 
-  filter(id == "pt014" & x_axis == "Post" | donor_batch == "do016_4")
-pca +
-  geom_text(data = pt014_do016, aes(x = PC1, y = PC2+0.04, label = id), color = "red", size = 3)
+  scale_color_brewer(palette = "Dark2") +
+  annotate(geom = "text", x = 0, y = 0.53, label = "Asymptomatic Pouch", color = "#1a401a") +
+  annotate(geom = "text", x = -0.3, y = -0.35, label = "Healthy Donors", color = "#955612")
+pca
 
 ggsave("../figures/amp_pca_hellinger_fmt_donor.png", device = "png", width = 7, height = 5)
 ```
