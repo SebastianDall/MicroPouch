@@ -1,3 +1,7 @@
 src/.R*
 src/.Rhistory
 .Rproj.user
+
+resequencing*
+ext_conc_v_richness*
+data_overview*
