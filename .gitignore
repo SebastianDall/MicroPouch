@@ -1,8 +1,14 @@
 # Sensitive data
-data/metadata/csv/*.csv
-data/metaphlan3/*
+# data/metadata/csv/*.csv
+# data/metaphlan3/*
+data/*
 
 tests/testthat/data/*
+
+addtest.R
+data_overview.Rmd
+ext_conc_v_richness.png
+resequencing*
 
 # History files
 .Rhistory
