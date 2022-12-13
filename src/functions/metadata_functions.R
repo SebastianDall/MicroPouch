@@ -12,60 +12,79 @@ mutate_x_axis_factor <- function(df) {
 }
 
 load_metadata <- function() {
-  metadata <- read_delim(here("data", "metadata", "csv", "selected_metadata.csv"), delim = ";")
+  metadata <- read_delim("../data/metadata/selected_metadata.csv", delim = ";")
   return(metadata)
 }
 
 
 load_metaphlan <- function(taxonomic_level = "genus") {
-  metaphlan <- read_delim(here("data", "metaphlan3", paste0("MetaPhlAn3_Subsample_5000000_", taxonomic_level)), delim = "\t")
+  metaphlan <- read_delim(paste0("../data/metaphlan3/", "MetaPhlAn3_Subsample_5000000_", taxonomic_level, ".csv"), delim = "\t")
   return(metaphlan)
 }
 
+# Isolate project and donor metadata relevant for analysis of projectfilter
+isolateProjectMetadata <- function(metadata, project_filter = "MP") {
+  patientMetadataWithDonorbatches <- isolateDonorBatchesUsed(metadata, project_filter)
 
+  DonorAndPatientMetadata <- isolateDonorAndPatientMetadata(metadata, patientMetadataWithDonorbatches, project_filter) %>%
+    createXaxis()
 
-prepare_metadata <- function(metadata) {
-  metadata_all <- metadata %>%
-    # mutate(LibID = str_replace(LibID, "LIB", library_plate)) %>%
-    # There was a OneNote library sample sheet error, which means all LIB00007-MP013 are called LIB00007-MP014.
-    # mutate(LibID = if_else(library_plate == "LIB00007", str_replace(LibID, "MP013", "MP014"), LibID)) %>%
-    select(id, sample_barcode, LibID, stage, project, group, donor, batch_1:batch_3, fecal_donation_number, fecal_batch_date, pdai_score) %>%
-    arrange(LibID)
-
-  return(metadata_all)
+  return(DonorAndPatientMetadata)
 }
 
 
-IsolateProjectAndDonor <- function(metadata, project_filter = "MP") {
-  metadata_donor_filter <- metadata %>%
+isolateDonorBatchesUsed <- function(metadata, project_filter) {
+  patientMetadataWithDonorbatches <- metadata %>%
     pivot_longer(batch_1:batch_3, names_to = "batch", values_to = "batch_number") %>%
     filter(!is.na(batch_number), project == project_filter) %>%
     mutate(donor_batch = paste0(donor, "_", batch_number))
 
-  metadata_in_MP_pre_post <- metadata %>%
+  return(patientMetadataWithDonorbatches)
+}
+
+isolateDonorAndPatientMetadata <- function(metadata, metadata_with_donor_batches_used, project_filter) {
+  DonorAndPatientMetadata <- metadata %>%
     mutate(donor_batch = paste0(id, "_", fecal_donation_number)) %>%
-    filter(project == project_filter | donor_batch %in% metadata_donor_filter$donor_batch) %>%
+    filter(project == project_filter | donor_batch %in% metadata_with_donor_batches_used$donor_batch) %>%
+    mutate(group = if_else(project == "donor_batch", "FMT", group))
+
+  return(DonorAndPatientMetadata)
+}
+
+createXaxis <- function(df) {
+  dfWithXaxis <- df %>%
     mutate(x_axis = if_else(stage == "inclusion", "Pre",
       if_else(stage == "followup_30d", "Post", stage)
-    ))
-
-  metadata_donors_used_in_trial <- metadata_in_MP_pre_post %>%
-    filter(project == "donor_batch") %>%
-    mutate(
-      x_axis = "Donor",
-      group = "FMT"
-    )
-
-  metadata_patients_completing_trial <- metadata_in_MP_pre_post %>%
-    filter(
-      project == project_filter
-      # stage %in% c("inclusion", "treatment_5", "treatment_10", "treatment_15", "treatment_21", "followup_30d")
-    )
-
-
-  metadata_relevant <- bind_rows(metadata_donors_used_in_trial, metadata_patients_completing_trial)
-  return(metadata_relevant)
+    )) %>%
+    mutate(x_axis = if_else(project == "donor_batch", "Donor", x_axis))
 }
+
+
+
+
+### Metaphlan functions
+calculateSpeciesRichness <- function(metaphlan, filter_species = 0) {
+  species_count_for_each_sample <- metaphlan %>%
+    select(-NCBI_tax_id) %>%
+    pivot_longer(-clade_name, names_to = "LibID") %>%
+    group_by(LibID) %>%
+    summarise(richness = sum(value > filter_species))
+
+  return(species_count_for_each_sample)
+}
+
+transposeMetaphlan <- function(metaphlan) {
+  t_metaphlan <- metaphlan %>%
+    select(-NCBI_tax_id) %>%
+    pivot_longer(-clade_name, names_to = "LibID") %>%
+    pivot_wider(names_from = clade_name, values_from = value) %>%
+    arrange(LibID) %>%
+    column_to_rownames(var = "LibID")
+
+
+  return(t_metaphlan)
+}
+
 
 
 plot_theme <- theme_bw() +
