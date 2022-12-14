@@ -14,8 +14,8 @@ library(here)
 library(mplibrary)
 
 source(file = "./src/functions/metadata_functions.R")
-source(file = "./functions/bioinformatics.R")
-source(file = "./functions/gg_functions.R")
+source(file = "./src/functions/bioinformatics.R")
+source(file = "./src/functions/gg_functions.R")
 ```
 
 ## metadata + mikrobiom data
@@ -39,7 +39,7 @@ t_metaphlan <- transposeMetaphlan(metaphlan)
 
 Next chunck checks which samples did not make it into the analysis
 ```{r}
-metadata_not_in_metaphlan <- prepare_metadata(metadata) %>%
+metadata_not_in_metaphlan <- metadata %>%
   filter(!LibID %in% colnames(metaphlan)) %>%
   filter(!is.na(id), !is.na(sample_barcode))
 ```
@@ -52,11 +52,7 @@ Species richness is defined as species with a relative abundance >0. Alpha diver
 
 ```{r}
 # Species richness
-species_richness <- metaphlan %>%
-  select(-NCBI_tax_id) %>%
-  pivot_longer(-clade_name, names_to = "LibID") %>%
-  group_by(LibID) %>%
-  summarise(richness = sum(value > 0))
+species_richness <- calculateSpeciesRichness(metaphlan, filter_species = 0)
 
 # Shannon diversity
 shannon_diversity <- tibble(LibID = rownames(t_metaphlan), shannon = diversity(as.matrix(t_metaphlan), index = "shannon"))
@@ -79,8 +75,8 @@ Adding which patients achieved remission post treatment.
 ```{r}
 project_filter <- "MP"
 
-metadata_MP <- IsolateProjectMetadata(metadata, project_filter = project_filter)
-metadata_MP_with_data <- IsolateProjectMetadata(metadata_in_metaphlan, project_filter = project_filter)
+metadata_MP <- isolateProjectMetadata(metadata, project_filter = project_filter)
+metadata_MP_with_data <- isolateProjectMetadata(metadata_in_metaphlan, project_filter = project_filter)
 
 remission_relapse <- metadata_MP_with_data %>%
   filter(!is.na(pdai_score)) %>%
@@ -91,8 +87,6 @@ remission_relapse <- metadata_MP_with_data %>%
   mutate(remission = if_else(inclusion - followup_30d > 2 & followup_30d <= 7, "remission", "relapse")) %>%
   select(id, group, remission)
 
-
-
 metadata_MP_remission <- left_join(metadata_MP_with_data, remission_relapse)
 metadata_MP_remission_alpha <- left_join(metadata_MP_remission, alpha_diversity_df)
 ```
@@ -101,23 +95,25 @@ metadata_MP_remission_alpha <- left_join(metadata_MP_remission, alpha_diversity_
 ## GGplot Alpha
 ### FMT/PLACEBO
 
-Depending on the `project_filter` tag two different ggplots are created. The ggplot code can be found in `functions/gg_functions.R`.
+The ggplot code can be found in `functions/gg_functions.R`.
+
 
 ```{r}
-gg_alpha_rich <- gg_alpha(metadata_MP_remission_alpha, alpha_metric = "richness", project_filter = project_filter) +
+gg_alpha_rich <- gg_alpha(metadata_MP_remission_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "richness") %>%
+  gg_compare_means(test = "wilcox.test", label.y = 75) +
   labs(y = "Number of Species") +
+  ylim(0, 100) +
+  plot_theme +
   theme(legend.position = "none")
 
-gg_alpha_shan <- gg_alpha(metadata_MP_remission_alpha, alpha_metric = "shannon", project_filter = project_filter) +
-  labs(y = "Shannon Diversity")
+gg_alpha_shan <- gg_alpha(metadata_MP_remission_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "shannon") %>%
+  gg_compare_means(test = "wilcox.test", label.y = 75) +
+  labs(y = "Shannon Diversity") +
+  ylim(0, 4.5) +
+  plot_theme +
+  theme(legend.position = "none")
 
-if (project_filter == "NP") {
-  widths <- c(1.6, 2)
-} else {
-  widths <- c(1, 1)
-}
-
-ggarrange(gg_alpha_rich, gg_alpha_shan, ncol = 2, labels = c("A", "B"), widths = widths)
+ggarrange(gg_alpha_rich, gg_alpha_shan, ncol = 2, labels = c("A", "B"))
 # ggsave(paste0("../figures/",project_filter,"_alpha_rich_shan.png"), device = "png", width = 8)
 ```
 
