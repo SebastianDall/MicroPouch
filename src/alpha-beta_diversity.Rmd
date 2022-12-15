@@ -114,7 +114,7 @@ gg_alpha_shan <- gg_alpha(metadata_MP_remission_alpha, x = c("Pre", "Post", "Don
   theme(legend.position = "none")
 
 ggarrange(gg_alpha_rich, gg_alpha_shan, ncol = 2, labels = c("A", "B"))
-# ggsave(paste0("../figures/",project_filter,"_alpha_rich_shan.png"), device = "png", width = 8)
+# ggsave(paste0("../figures/MP_alpha_rich_shan.png"), device = "png", width = 8)
 ```
 
 ## Beta-Diversity
@@ -124,20 +124,46 @@ ggarrange(gg_alpha_rich, gg_alpha_shan, ncol = 2, labels = c("A", "B"))
 Distance calculated as the median bray curtis distance from patient to set of donor samples received.
 
 ```{r}
-source("functions/beta_diversity_function.R")
+# source("./src/functions/beta_diversity_function.R")
 ```
 
 
 ```{r}
-
-if (project_filter == "NP") {
-  stages <- grep("Donor", stages_all, invert = T, value = T)
-} else {
-  stages <- c("Pre", "Post")
-}
-
-metadata_beta_diversity_bray <- beta_diversity(metadata_MP, t_metaphlan, transform = T, stages = stages, seed = 1)
+# metadata_beta_diversity_bray <- beta_diversity(metadata_MP, t_metaphlan, transform = T, stages = c("Pre", "Post"), seed = 1)
 ```
+
+```{r}
+metadata_beta <- createMetadataWBetadiversity(metadata_MP, t_metaphlan, "bray", TRUE)
+```
+
+```{r}
+metadata_beta_FMT_and_placebo <- bind_rows(
+  compareFMT2ActualDonor(metadata_MP, metadata_beta),
+  compareFMT2DonorNotReceived(metadata_MP, metadata_beta),
+  comparePlacebo2DonorNotReceived(metadata_MP, metadata_beta)
+)
+```
+
+
+```{r}
+metadata_beta_summarised <- metadata_beta_FMT_placebo %>% # bind_rows(metadata_beta_FMT, metadata_beta_placebo) %>%
+  group_by(id, x_axis, actual_donor, group) %>%
+  summarise(median_dissimilarity = median(dissimilarity)) %>%
+  arrange(id)
+```
+
+```{r}
+metadata_beta_summarised %>%
+  filter(x_axis %in% c("Pre", "Post", "Donor"), group == "FMT") %>%
+  mutate(x_axis = factor(x_axis, levels = c("Pre", "Post", "Donor"))) %>%
+  ggplot(aes(x = x_axis, y = 1 - median_dissimilarity, color = x_axis)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_line(aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) +
+  geom_point(aes(group = id), position = position_dodge(0.2), size = 2) +
+  facet_grid(. ~ actual_donor) +
+  plot_theme
+```
+
 
 ```{r}
 donor_id <- metadata_MP %>%
