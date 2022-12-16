@@ -10,7 +10,7 @@ output: html_document
 library(tidyverse)
 library(vegan)
 library(ggpubr)
-library(here)
+# library(here)
 library(mplibrary)
 
 source(file = "./src/functions/metadata_functions.R")
@@ -124,20 +124,20 @@ Distance calculated as the median bray curtis distance from patient to set of do
 ```
 
 ```{r}
-metadata_beta <- createMetadataWBetadiversity(metadata_MP, t_metaphlan, "bray", TRUE)
+metadata_beta_bray <- createMetadataWBetadiversity(metadata_MP, t_metaphlan, "bray", TRUE)
 ```
 
 ```{r}
-metadata_beta_FMT_and_placebo <- bind_rows(
-  compareFMT2ActualDonor(metadata_MP, metadata_beta),
-  compareFMT2DonorNotReceived(metadata_MP, metadata_beta),
-  comparePlacebo2DonorNotReceived(metadata_MP, metadata_beta)
+metadata_beta_bray_FMT_and_placebo <- bind_rows(
+  compareFMT2ActualDonor(metadata_MP, metadata_beta_bray),
+  compareFMT2DonorNotReceived(metadata_MP, metadata_beta_bray),
+  comparePlacebo2DonorNotReceived(metadata_MP, metadata_beta_bray)
 )
 ```
 
 
 ```{r}
-metadata_beta_summarised <- metadata_beta_FMT_placebo %>% # bind_rows(metadata_beta_FMT, metadata_beta_placebo) %>%
+metadata_beta_summarised <- metadata_beta_bray_FMT_and_placebo %>%
   group_by(id, x_axis, actual_donor, group) %>%
   summarise(median_dissimilarity = median(dissimilarity)) %>%
   arrange(id)
@@ -154,7 +154,46 @@ metadata_beta_summarised %>%
   facet_grid(. ~ actual_donor) +
   plot_theme
 ```
+```{r}
+metadata_beta_summarised %>%
+  filter(x_axis %in% c("Pre", "Post")) %>%
+  mutate(x_axis = factor(x_axis, levels = c("Pre", "Post"))) %>%
+  group_by(id) %>%
+  filter(n_distinct(x_axis) == 2) %>%
+  gg_beta(method = "bray") +
+  stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, label.y = 0.45, tip.length = 0.02)
 
+metadata_beta_summarised %>%
+  filter(x_axis %in% c("Pre", "Post")) %>%
+  mutate(x_axis = factor(x_axis, levels = c("Pre", "Post"))) %>%
+  group_by(id) %>%
+  filter(n_distinct(x_axis) == 2) %>%
+  gg_beta(filter_group = "placebo", method = "bray") +
+  stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, label.y = 0.45, tip.length = 0.02)
+```
+
+```{r}
+gg_beta <- function(metadata_beta_summarised, method) {
+  if (method == "bray") {
+    y_lab <- "Similarity to Donors (Bray-Curtis)"
+  } else if (method == "sorensen") {
+    y_lab <- "Similarity to Donors (Sørensen Coefficient)"
+  } else {
+    stopifnot(method %in% c("sorensen", "bray"), "method not valid.")
+  }
+
+  gg <- metadata_beta_summarised %>%
+    ggplot(aes(x = x_axis, y = 1 - median_dissimilarity, color = x_axis)) +
+    geom_boxplot(outlier.shape = NA) +
+    geom_line(aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) +
+    geom_point(aes(group = id), position = position_dodge(0.2), size = 2) +
+    labs(y = y_lab, x = "") +
+    facet_grid(. ~ paste0(group, " - ", actual_donor)) +
+    plot_theme
+
+  return(gg)
+}
+```
 
 ```{r}
 donor_id <- metadata_MP %>%
