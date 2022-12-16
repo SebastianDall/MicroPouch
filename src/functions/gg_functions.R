@@ -1,42 +1,42 @@
 library(ggplot2)
 
-gg_alpha <- function(df, x, alpha_metric = "richness") {
-  if (missing(x)) {
-    stop("Error in x: the stages to be plotted on the x-axis must be stated!")
-  }
+# gg_alpha <- function(df, x, alpha_metric = "richness") {
+#   if (missing(x)) {
+#     stop("Error in x: the stages to be plotted on the x-axis must be stated!")
+#   }
 
 
-  df_rename <- df %>%
-    rename(alpha_metric = alpha_metric)
+#   df_rename <- df %>%
+#     rename(alpha_metric = alpha_metric)
 
-  gg_richness_data <- df_rename %>%
-    filter(!is.na(remission) | x_axis == "Donor", x_axis %in% x) %>% #
-    mutate(x_axis = factor(x_axis, levels = x)) %>%
-    arrange(id)
+#   gg_richness_data <- df_rename %>%
+#     filter(!is.na(remission) | x_axis == "Donor", x_axis %in% x) %>% #
+#     mutate(x_axis = factor(x_axis, levels = x)) %>%
+#     arrange(id)
 
 
-  gg_alpha_rich <- gg_richness_data %>%
-    ggplot(aes(x = x_axis, y = alpha_metric, color = x_axis)) +
-    geom_point(aes(group = id), position = position_dodge(0.2)) +
-    geom_boxplot(outlier.shape = NA) +
-    geom_line(data = filter(gg_richness_data, x_axis != "Donor"), aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) +
-    geom_point(aes(group = id), position = position_dodge(0.2), size = 2) +
-    facet_grid(. ~ group, scales = "free_x", space = "free")
+#   gg_alpha_rich <- gg_richness_data %>%
+#     ggplot(aes(x = x_axis, y = alpha_metric, color = x_axis)) +
+#     geom_point(aes(group = id), position = position_dodge(0.2)) +
+#     geom_boxplot(outlier.shape = NA) +
+#     geom_line(data = filter(gg_richness_data, x_axis != "Donor"), aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) +
+#     geom_point(aes(group = id), position = position_dodge(0.2), size = 2) +
+#     facet_grid(. ~ group, scales = "free_x", space = "free")
 
-  return(gg_alpha_rich)
-}
+#   return(gg_alpha_rich)
+# }
 
-gg_compare_means <- function(gg, test, label.y) {
-  p.label <- "p.format"
-  p.list <- list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1), symbols = c("p < 0.0001", "p < 0.001", " p < 0.01", "p < 0.05", "ns"))
+# gg_compare_means <- function(gg, test, label.y) {
+#   p.label <- "p.format"
+#   p.list <- list(cutpoints = c(0, 0.0001, 0.001, 0.01, 0.05, 1), symbols = c("p < 0.0001", "p < 0.001", " p < 0.01", "p < 0.05", "ns"))
 
-  data <- gg$data
+#   data <- gg$data
 
-  ggnew <- gg +
-    stat_compare_means(label = p.label, method = test, comparisons = list(c("Pre", "Post")), paired = T, label.y = label.y, symnum.arg = p.list) +
-    stat_compare_means(data = filter(data, group != "placebo"), label = p.label, method = test, comparisons = list(c("Pre", "Donor"), c("Post", "Donor")), symnum.arg = p.list)
-  return(ggnew)
-}
+#   ggnew <- gg +
+#     stat_compare_means(label = p.label, method = test, comparisons = list(c("Pre", "Post")), paired = T, label.y = label.y, symnum.arg = p.list) +
+#     stat_compare_means(data = filter(data, group != "placebo"), label = p.label, method = test, comparisons = list(c("Pre", "Donor"), c("Post", "Donor")), symnum.arg = p.list)
+#   return(ggnew)
+# }
 
 
 
@@ -111,55 +111,55 @@ gg_compare_means <- function(gg, test, label.y) {
 
 
 
-gg_beta <- function(df, beta_metric, project_filter = "MP", stat.test = "wilcox.test") {
-  stopifnot(project_filter %in% c("MP", "NP"))
-  stopifnot(beta_metric %in% c("bray", "sorensen"))
+# gg_beta <- function(df, beta_metric, project_filter = "MP", stat.test = "wilcox.test") {
+#   stopifnot(project_filter %in% c("MP", "NP"))
+#   stopifnot(beta_metric %in% c("bray", "sorensen"))
 
 
-  p.label <- "p.format"
-  tip <- 0.02
-  if (beta_metric == "bray") {
-    y_lab <- "Similarity to Donors (Bray-Curtis)"
-    y.l <- 0.45
+#   p.label <- "p.format"
+#   tip <- 0.02
+#   if (beta_metric == "bray") {
+#     y_lab <- "Similarity to Donors (Bray-Curtis)"
+#     y.l <- 0.45
 
-    if (project_filter == "MP") {
-      ylim <- c(0, 0.5)
-    } else {
-      ylim <- c(0, 0.6)
-    }
-  } else {
-    y_lab <- "Similarity to Donors (Sørensen Coefficient)"
-    y.l <- 0.55
+#     if (project_filter == "MP") {
+#       ylim <- c(0, 0.5)
+#     } else {
+#       ylim <- c(0, 0.6)
+#     }
+#   } else {
+#     y_lab <- "Similarity to Donors (Sørensen Coefficient)"
+#     y.l <- 0.55
 
-    if (project_filter == "MP") {
-      ylim <- c(0, 0.6)
-    } else {
-      ylim <- c(0, 0.8)
-    }
-  }
+#     if (project_filter == "MP") {
+#       ylim <- c(0, 0.6)
+#     } else {
+#       ylim <- c(0, 0.8)
+#     }
+#   }
 
 
 
-  if (project_filter == "MP") {
-    gg <- df %>%
-      ggplot(aes(x = x_axis, y = 1 - beta_diversity, color = x_axis)) +
-      geom_boxplot(outlier.shape = NA) +
-      geom_line(aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) +
-      geom_point(aes(group = id), position = position_dodge(0.2), size = 2) +
-      stat_compare_means(label = p.label, method = stat.test, comparisons = list(c("Pre", "Post")), paired = T, label.y = y.l, tip.length = tip) +
-      coord_cartesian(ylim = ylim) +
-      labs(title = "FMT group", y = y_lab, x = "") +
-      facet_grid(. ~ comparison) +
-      plot_theme
-  } else {
-    gg <- df %>%
-      ggplot(aes(x = x_axis, y = 1 - beta_diversity, color = id)) +
-      geom_line(aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) +
-      geom_point(aes(group = id), position = position_dodge(0.2), size = 2) +
-      coord_cartesian(ylim = ylim) +
-      labs(y = y_lab, x = "") +
-      plot_theme
-  }
+#   if (project_filter == "MP") {
+#     gg <- df %>%
+#       ggplot(aes(x = x_axis, y = 1 - beta_diversity, color = x_axis)) +
+#       geom_boxplot(outlier.shape = NA) +
+#       geom_line(aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) +
+#       geom_point(aes(group = id), position = position_dodge(0.2), size = 2) +
+#       stat_compare_means(label = p.label, method = stat.test, comparisons = list(c("Pre", "Post")), paired = T, label.y = y.l, tip.length = tip) +
+#       coord_cartesian(ylim = ylim) +
+#       labs(title = "FMT group", y = y_lab, x = "") +
+#       facet_grid(. ~ comparison) +
+#       plot_theme
+#   } else {
+#     gg <- df %>%
+#       ggplot(aes(x = x_axis, y = 1 - beta_diversity, color = id)) +
+#       geom_line(aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) +
+#       geom_point(aes(group = id), position = position_dodge(0.2), size = 2) +
+#       coord_cartesian(ylim = ylim) +
+#       labs(y = y_lab, x = "") +
+#       plot_theme
+#   }
 
-  return(gg)
-}
+#   return(gg)
+# }
