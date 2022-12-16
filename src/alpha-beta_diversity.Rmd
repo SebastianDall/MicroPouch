@@ -75,13 +75,9 @@ species_richness <- calculateSpeciesRichness(metaphlan, filter_species = 0)
 shannon_diversity <- tibble(LibID = rownames(t_metaphlan), shannon = diversity(as.matrix(t_metaphlan), index = "shannon"))
 
 alpha_diversity_df <- full_join(species_richness, shannon_diversity)
-```
 
 
 
-
-#### Joining with metadata_in_metaphlan
-```{r}
 metadata_with_alpha <- metadata_in_metaphlan %>%
   left_join(alpha_diversity_df)
 
@@ -95,16 +91,12 @@ metadata_MP_remission_alpha <- left_join(metadata_MP_remission, alpha_diversity_
 gg_alpha_rich <- gg_alpha(metadata_MP_remission_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "richness") %>%
   gg_compare_means(test = "wilcox.test", label.y = 75) +
   labs(y = "Number of Species") +
-  ylim(0, 100) +
-  plot_theme +
-  theme(legend.position = "none")
+  ylim(0, 100)
 
 gg_alpha_shan <- gg_alpha(metadata_MP_remission_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "shannon") %>%
-  gg_compare_means(test = "wilcox.test", label.y = 75) +
+  gg_compare_means(test = "wilcox.test", label.y = 3) +
   labs(y = "Shannon Diversity") +
-  ylim(0, 4.5) +
-  plot_theme +
-  theme(legend.position = "none")
+  ylim(0, 4.5)
 
 ggarrange(gg_alpha_rich, gg_alpha_shan, ncol = 2, labels = c("A", "B"))
 # ggsave(paste0("../figures/MP_alpha_rich_shan.png"), device = "png", width = 8)
