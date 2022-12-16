@@ -36,6 +36,23 @@ metadata_in_metaphlan <- metadata %>%
 t_metaphlan <- transposeMetaphlan(metaphlan)
 ```
 
+```{r projectmetadata}
+project_filter <- "MP"
+
+metadata_MP <- isolateProjectMetadata(metadata, project_filter = project_filter)
+metadata_MP_with_data <- isolateProjectMetadata(metadata_in_metaphlan, project_filter = project_filter)
+
+remission_relapse <- metadata_MP_with_data %>%
+  filter(!is.na(pdai_score)) %>%
+  group_by(id) %>%
+  filter(n_distinct(stage) == 2) %>%
+  select(id, stage, group, pdai_score) %>%
+  pivot_wider(names_from = stage, values_from = pdai_score) %>%
+  mutate(remission = if_else(inclusion - followup_30d > 2 & followup_30d <= 7, "remission", "relapse")) %>%
+  select(id, group, remission)
+
+metadata_MP_remission <- left_join(metadata_MP_with_data, remission_relapse)
+```
 
 Next chunck checks which samples did not make it into the analysis
 ```{r}
@@ -64,40 +81,16 @@ alpha_diversity_df <- full_join(species_richness, shannon_diversity)
 
 
 #### Joining with metadata_in_metaphlan
-
-
 ```{r}
 metadata_with_alpha <- metadata_in_metaphlan %>%
   left_join(alpha_diversity_df)
-```
 
-Adding which patients achieved remission post treatment.
-```{r}
-project_filter <- "MP"
-
-metadata_MP <- isolateProjectMetadata(metadata, project_filter = project_filter)
-metadata_MP_with_data <- isolateProjectMetadata(metadata_in_metaphlan, project_filter = project_filter)
-
-remission_relapse <- metadata_MP_with_data %>%
-  filter(!is.na(pdai_score)) %>%
-  group_by(id) %>%
-  filter(n_distinct(stage) == 2) %>%
-  select(id, stage, group, pdai_score) %>%
-  pivot_wider(names_from = stage, values_from = pdai_score) %>%
-  mutate(remission = if_else(inclusion - followup_30d > 2 & followup_30d <= 7, "remission", "relapse")) %>%
-  select(id, group, remission)
-
-metadata_MP_remission <- left_join(metadata_MP_with_data, remission_relapse)
 metadata_MP_remission_alpha <- left_join(metadata_MP_remission, alpha_diversity_df)
 ```
 
 
 ## GGplot Alpha
 ### FMT/PLACEBO
-
-The ggplot code can be found in `functions/gg_functions.R`.
-
-
 ```{r}
 gg_alpha_rich <- gg_alpha(metadata_MP_remission_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "richness") %>%
   gg_compare_means(test = "wilcox.test", label.y = 75) +
@@ -118,8 +111,6 @@ ggarrange(gg_alpha_rich, gg_alpha_shan, ncol = 2, labels = c("A", "B"))
 ```
 
 ## Beta-Diversity
-
-
 ### BRAY CURTIS
 Distance calculated as the median bray curtis distance from patient to set of donor samples received.
 
