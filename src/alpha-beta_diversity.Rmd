@@ -128,234 +128,52 @@ metadata_beta_bray <- createMetadataWBetadiversity(metadata_MP, t_metaphlan, "br
 ```
 
 ```{r}
-metadata_beta_bray_FMT_and_placebo <- bind_rows(
-  compareFMT2ActualDonor(metadata_MP, metadata_beta_bray),
-  compareFMT2DonorNotReceived(metadata_MP, metadata_beta_bray),
-  comparePlacebo2DonorNotReceived(metadata_MP, metadata_beta_bray)
-)
-```
-
-
-```{r}
-metadata_beta_summarised <- metadata_beta_bray_FMT_and_placebo %>%
-  group_by(id, x_axis, actual_donor, group) %>%
-  summarise(median_dissimilarity = median(dissimilarity)) %>%
-  arrange(id)
+metadata_beta_bray_FMT_and_placebo <- createANDcombineComparedOutputs(metadata_MP, metadata_beta_bray)
+metadata_beta_bray_summarised <- metadata_beta_bray_FMT_and_placebo %>%
+  summariseBetaDiversityOutput()
 ```
 
 ```{r}
-metadata_beta_summarised %>%
-  filter(x_axis %in% c("Pre", "Post", "Donor"), group == "FMT") %>%
-  mutate(x_axis = factor(x_axis, levels = c("Pre", "Post", "Donor"))) %>%
-  ggplot(aes(x = x_axis, y = 1 - median_dissimilarity, color = x_axis)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_line(aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) +
-  geom_point(aes(group = id), position = position_dodge(0.2), size = 2) +
-  facet_grid(. ~ actual_donor) +
-  plot_theme
-```
-```{r}
-metadata_beta_summarised %>%
+metadata_beta_bray_summarised %>%
   filter(x_axis %in% c("Pre", "Post")) %>%
   mutate(x_axis = factor(x_axis, levels = c("Pre", "Post"))) %>%
   group_by(id) %>%
   filter(n_distinct(x_axis) == 2) %>%
   gg_beta(method = "bray") +
   stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, label.y = 0.45, tip.length = 0.02)
-
-metadata_beta_summarised %>%
-  filter(x_axis %in% c("Pre", "Post")) %>%
-  mutate(x_axis = factor(x_axis, levels = c("Pre", "Post"))) %>%
-  group_by(id) %>%
-  filter(n_distinct(x_axis) == 2) %>%
-  gg_beta(filter_group = "placebo", method = "bray") +
-  stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, label.y = 0.45, tip.length = 0.02)
 ```
-
-```{r}
-gg_beta <- function(metadata_beta_summarised, method) {
-  if (method == "bray") {
-    y_lab <- "Similarity to Donors (Bray-Curtis)"
-  } else if (method == "sorensen") {
-    y_lab <- "Similarity to Donors (Sørensen Coefficient)"
-  } else {
-    stopifnot(method %in% c("sorensen", "bray"), "method not valid.")
-  }
-
-  gg <- metadata_beta_summarised %>%
-    ggplot(aes(x = x_axis, y = 1 - median_dissimilarity, color = x_axis)) +
-    geom_boxplot(outlier.shape = NA) +
-    geom_line(aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) +
-    geom_point(aes(group = id), position = position_dodge(0.2), size = 2) +
-    labs(y = y_lab, x = "") +
-    facet_grid(. ~ paste0(group, " - ", actual_donor)) +
-    plot_theme
-
-  return(gg)
-}
-```
-
-```{r}
-donor_id <- metadata_MP %>%
-  filter(x_axis == "Donor") %>%
-  select(LibID, id) %>%
-  rename(
-    donor_id = id,
-    donor_comparison = LibID
-  )
-
-usedLabels <- stages_labels[stages_all %in% stages]
-
-metadata_beta_diversity_bray_summarised <- summariseBetaDiversityOutput(metadata_beta_diversity_bray, donor_id) %>%
-  mutate(x_axis = factor(x_axis, levels = stages, labels = usedLabels))
-
-if (project_filter == "MP") {
-  gg_beta_comparison_FMT <- metadata_beta_diversity_bray_summarised %>%
-    filter(group == "FMT") %>%
-    gg_beta("bray") +
-    theme(legend.position = "none")
-
-  gg_beta_comparison_placebo <- metadata_beta_diversity_bray_summarised %>%
-    filter(group == "placebo") %>%
-    gg_beta("bray") +
-    theme(
-      axis.title.y = element_blank(),
-      axis.text.y = element_blank(),
-      axis.ticks.y = element_blank()
-    )
-
-  gg_bray <- ggarrange(gg_beta_comparison_FMT, gg_beta_comparison_placebo, ncol = 2, widths = c(2, 1))
-  # ggsave(filename = "../figures/beta-diversity_hellinger_bray_coeff_placebo.png", device = "png", height = 5, width = 3.5)
-} else if (project_filter == "NP") {
-  gg_beta_comparison_NP_bray <- metadata_beta_diversity_bray_summarised %>%
-    filter(group == "FMT") %>%
-    gg_beta("bray", project_filter = project_filter) +
-    theme(
-      axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.35),
-      legend.position = "right"
-    )
-}
-```
-
-```{r}
-y.lab <- "Similarity to Donors (Bray-Curtis)"
-
-metadata_beta_diversity_bray_summarised_remission <- metadata_beta_diversity_bray_summarised %>%
-  left_join(remission_relapse)
-fmt_relapse <- metadata_beta_diversity_bray_summarised_remission %>%
-  filter(remission == "relapse", group == "FMT", comparison == "Actual Donors")
-
-gg_beta_remission_fmt <- metadata_beta_diversity_bray_summarised_remission %>%
-  filter(group == "FMT", comparison == "Actual Donors") %>%
-  ggplot(aes(x = x_axis, y = 1 - beta_diversity, color = x_axis)) +
-  geom_boxplot(data = fmt_relapse, outlier.shape = NA) +
-  geom_line(aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) +
-  geom_point(aes(group = id), position = position_dodge(0.2), size = 2) +
-  labs(title = "FMT group", x = "", y = y.lab) +
-  ylim(c(0, 0.45)) +
-  facet_grid(comparison ~ remission) +
-  plot_theme
-
-gg_beta_remission_placebo <- metadata_beta_diversity_bray_summarised_remission %>%
-  filter(group == "placebo", comparison == "All Donors") %>%
-  ggplot(aes(x = x_axis, y = 1 - beta_diversity, color = x_axis)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_line(aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) +
-  geom_point(aes(group = id), position = position_dodge(0.2), size = 2) +
-  labs(title = "Placebo group", x = "", y = "") +
-  ylim(c(0, 0.45)) +
-  facet_grid(comparison ~ remission) +
-  plot_theme
-
-ggarrange(gg_beta_remission_fmt, gg_beta_remission_placebo)
-ggsave("../figures/beta-diversity_bray_coeff_remission.png", width = 8, height = 6)
-```
-
-
 
 
 ### Sorensen
 
 ```{r}
-metadata_beta_diversity_sorensen <- beta_diversity(metadata_MP, t_metaphlan, method = "sorensen", stages = stages, seed = 1)
+metadata_beta_sor_summarised <- createMetadataWBetadiversity(metadata_MP, t_metaphlan, "sorensen", FALSE) %>%
+  createANDcombineComparedOutputs(projectmetadata = metadata_MP) %>%
+  summariseBetaDiversityOutput()
 
-metadata_beta_diversity_sorensen_summarised <- summariseBetaDiversityOutput(metadata_beta_diversity_sorensen, donor_id) %>%
-  mutate(x_axis = factor(x_axis, levels = stages, labels = usedLabels))
 
-
-if (project_filter == "MP") {
-  gg_beta_comparison_FMT <- metadata_beta_diversity_sorensen_summarised %>%
-    filter(group == "FMT") %>%
-    gg_beta("sorensen") +
-    theme(legend.position = "none")
-
-  gg_beta_comparison_placebo <- metadata_beta_diversity_sorensen_summarised %>%
-    filter(group == "placebo") %>%
-    gg_beta("sorensen") +
-    theme(
-      axis.title.y = element_blank(),
-      axis.text.y = element_blank(),
-      axis.ticks.y = element_blank()
-    )
-
-  gg_sor <- ggarrange(gg_beta_comparison_FMT, gg_beta_comparison_placebo, ncol = 2, widths = c(2, 1))
-  # ggsave(filename = "../figures/beta-diversity_hellinger_bray_coeff_placebo.png", device = "png", height = 5, width = 3.5)
-} else if (project_filter == "NP") {
-  gg_beta_comparison_NP_sorensen <- metadata_beta_diversity_sorensen_summarised %>%
-    filter(group == "FMT") %>%
-    gg_beta("sorensen", project_filter = project_filter) +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.35))
-}
+metadata_beta_sor_summarised %>%
+  filter(x_axis %in% c("Pre", "Post")) %>%
+  mutate(x_axis = factor(x_axis, levels = c("Pre", "Post"))) %>%
+  group_by(id) %>%
+  filter(n_distinct(x_axis) == 2) %>%
+  gg_beta(method = "sorensen") +
+  stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, tip.length = 0.02)
 ```
-
-
-```{r}
-
-if (project_filter == "MP") {
-  ggarrange(gg_sor, gg_bray, ncol = 2, labels = c("A", "B"))
-  # ggsave(filename = paste0("../figures/beta-diversity_median_sor_bray_alldonor_",test,".png"), device = "png", width = 10, height = 5)
-} else if (project_filter == "NP") {
-  widths <- c(1, 1.2)
-  ggarrange(gg_beta_comparison_NP_sorensen, gg_beta_comparison_NP_bray, ncol = 2, labels = c("A", "B"), widths = widths)
-  # ggsave(paste0("../figures/",project_filter,"_beta_diversity.png"), device = "png", height = 5, width = 8)
-}
-```
-
-
-
-
-
-
 
 #### BRAY without Transformation
 Produces supplementary figure in MicroPouch article. Bray Curtis similarity without Hellinger transformation.
 
 ```{r}
-metadata_beta_diversity_bray_notrans <- beta_diversity(metadata_MP, t_metaphlan, method = "bray", transform = F, stages = stages, seed = 1)
+metadata_beta_bray_untransformed_summarised <- createMetadataWBetadiversity(metadata_MP, t_metaphlan, "bray", FALSE) %>%
+  createANDcombineComparedOutputs(projectmetadata = metadata_MP) %>%
+  summariseBetaDiversityOutput()
+
+metadata_beta_bray_untransformed_summarised %>%
+  filter(x_axis %in% c("Pre", "Post")) %>%
+  mutate(x_axis = factor(x_axis, levels = c("Pre", "Post"))) %>%
+  group_by(id) %>%
+  filter(n_distinct(x_axis) == 2) %>%
+  gg_beta(method = "bray") +
+  stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, tip.length = 0.02)
 ```
-
-```{r}
-metadata_beta_diversity_bray_summarised_no_trans <- summariseBetaDiversityOutput(metadata_beta_diversity_bray_notrans, donor_id) %>%
-  mutate(x_axis = factor(x_axis, levels = stages, labels = usedLabels))
-
-
-gg_beta_comparison_FMT <- metadata_beta_diversity_bray_summarised_no_trans %>%
-  filter(group == "FMT") %>%
-  gg_beta("bray") +
-  theme(legend.position = "none")
-
-gg_beta_comparison_placebo <- metadata_beta_diversity_bray_summarised_no_trans %>%
-  filter(group == "placebo") %>%
-  gg_beta("bray") +
-  theme(
-    axis.title.y = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank()
-  )
-
-gg_bray <- ggarrange(gg_beta_comparison_FMT, gg_beta_comparison_placebo, ncol = 2, widths = c(2, 1))
-gg_bray
-
-# ggsave(filename = "../figures/beta-diversity_median_bray_coeff_transform_F_wilcox.test.png", device = "png", width = 6, height = 5)
-```
-
