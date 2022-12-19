@@ -10,7 +10,9 @@ output: html_document
 ```{r}
 library(tidyverse)
 library(ggpubr)
-source("functions/metadata_functions.R")
+library(mplibrary)
+source("./src/functions/metadata_functions.R")
+source("./src/functions/gg_functions.R")
 ```
 
 ## Loading Data
@@ -22,7 +24,7 @@ metadata <- load_metadata()
 
 metaphlan <- load_metaphlan(taxonomic_level = "genus")
 
-project_filter = "NP"
+project_filter <- "MP"
 ```
 
 ```{r}
