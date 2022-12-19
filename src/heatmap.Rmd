@@ -72,7 +72,7 @@ metadata_relevant_with_tax <- left_join(metadata_relevant, metaphlan_long)
 This chunk finds the most abundant genera by calculating the weighted mean of each taxonomic clade in each group, `Pre FMT`, `Pre Placebo`, and `Donor`. Each group is weighted by the inverse number of samples in each group. Since there are the least amount of samples in the `Donor` group their relative abundance will have a higher weight in the mean. The purpose is to find engraftment from the donor microbiome to the patients therefore the `Donor` microbiome gets a higher weight. In the end the top genera will be arranged according to their prevalence in the `Donor` group. 
 ```{r}
 metadata_tax_hellinger <- hellingerTransformSamples(metadata_relevant_with_tax)
-top_genera_weighted <- calculateTopGenera(metadata_tax_hellinger, n_genera)
+top_genera_weighted <- calculateTopGenera(metadata_tax_hellinger, n_genera = n_genera)
 top_genera_weighted_arranged_by_donor <- arrangeTopGeneraInDonor(metadata_tax_hellinger, top_genera_weighted)
 ```
 
