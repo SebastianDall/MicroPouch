@@ -2,7 +2,7 @@
 # data/metadata/csv/*.csv
 # data/metaphlan3/*
 data/*
-
+!data/.gitkeep
 tests/testthat/data/*
 
 addtest.R
