@@ -22,72 +22,24 @@ source(file = "./functions/gg_functions.R")
 
 ## metadata + mikrobiom data
 ```{r}
-metadata <- load_metadata()
+#metadata <- load_metadata()
 
-new_metadata <- read_delim("../data/metadata/metadata.csv", delim = ";", show_col_types = FALSE) %>% 
+metadata <- read_delim("../data/metadata/metadata.csv", delim = ";", show_col_types = FALSE, col_types = list(batch_3 = col_double())) %>% 
   filter(!is.na(sample_barcode)) %>% 
   distinct(sample_barcode, .keep_all = TRUE)
 
 
 
-metaphlan <- readr::read_delim("../data/metaphlan3/MetaPhlAn3_Subsample_5000000_species.csv", delim = "\t", show_col_types = FALSE)
+#metaphlan <- readr::read_delim("../data/metaphlan3/MetaPhlAn3_Subsample_5000000_species.csv", delim = "\t", show_col_types = FALSE)
 
-new_metaphlan <- readr::read_delim("../data/metaphlan3/MetaPhlAn_4.0.3_Combined_NonHuman_Subsampled_2500000_profile.txt", delim = "\t", show_col_types = FALSE, skip = 1) %>% 
-  filter_taxonomy("species") 
-  
-colnames_old <- colnames(new_metaphlan)
-colnames_new <- str_remove(colnames_old, "\\_Non.*")
-
-
-new_metaphlan <- new_metaphlan %>% 
-  rename_at(all_of(colnames_old), ~ colnames_new)
-
-
-```
-
-
-```{r}
-filter_taxonomy <- function(metaphlan, taxonomy = "species", keep_unclassified = TRUE){
-  tax <- tibble(
-    abbr_taxonomy = c("k", "p", "c", "o", "f", "g", "s", "t"), 
-    full_taxonomy = c("kingdom", "phylum", "class", "order", "family", "genus", "species", "strain")
-  )
-  
-  tax_lvl <- filter(tax,full_taxonomy == taxonomy)$abbr_taxonomy
-  next_tax_lvl <- filter(tax, abbr_taxonomy == tax$abbr_taxonomy[grep(tax_lvl, tax$abbr_taxonomy) + 1])$abbr_taxonomy
-  
-  
-  if(keep_unclassified){
-    df <- metaphlan %>% 
-      filter(
-        clade_name == "UNCLASSIFIED" | str_detect(clade_name, paste0(tax_lvl,"_{2}")), 
-        str_detect(clade_name, paste0(next_tax_lvl,"_{2}")) == FALSE
-      )
-  } else {
-    df <- metaphlan %>% 
-      filter(
-        str_detect(clade_name, paste0(tax_lvl,"_{2}")), 
-        str_detect(clade_name, paste0(next_tax_lvl,"_{2}")) == FALSE
-      )
-  }
-  
-  if(taxonomy == "strain"){
-    df <- metaphlan %>% 
-      filter(
-        clade_name == "UNCLASSIFIED" | str_detect(clade_name, paste0(tax_lvl,"_{2}"))
-      )
-  }
-  
-  
-  return(
-    df %>% 
-      mutate(
-        clade_name = str_remove(clade_name, paste0(".*",tax_lvl,"__"))
-      )
-  )
-  
-  
-}
+metaphlan <- read_delim(
+    "../data/metaphlan3/MetaPhlAn_4.0.3_Combined_NonHuman_Subsampled_2500000_profile.txt", 
+    delim = "\t", 
+    show_col_types = FALSE, 
+    skip = 1
+  ) %>% 
+    filter_taxonomy("species") %>% 
+    remove_NonHuman_from_colnames()
 
 
 ```
@@ -97,18 +49,19 @@ filter_taxonomy <- function(metaphlan, taxonomy = "species", keep_unclassified =
 First step is isolation of samples in colnames(metaphlan) in metadata sheet. Thereafter, relevant columns are selected.
 
 ```{r}
-metadata_in_metaphlan <- metadata %>%
-  filter(LibID %in% colnames(metaphlan))
+# metadata_in_metaphlan <- metadata %>%
+#   filter(LibID %in% colnames(metaphlan))
 
-new_metadata_in_metaphlan <- new_metadata %>% 
-  filter(sample_barcode %in% colnames(new_metaphlan))
+metadata_in_metaphlan <- metadata %>% 
+  filter(sample_barcode %in% colnames(metaphlan))
 
-t_metaphlan <- transposeMetaphlan(metaphlan)
-t_new_metaphlan <- new_metaphlan %>%
-        pivot_longer(-clade_name, names_to = "sample_barcode") %>%
-        pivot_wider(names_from = clade_name, values_from = value) %>%
-        arrange(sample_barcode) %>%
-        column_to_rownames(var = "sample_barcode")
+# t_metaphlan <- metaphlan %>% 
+#   select(-NCBI_tax_id) %>% 
+#   transposeMetaphlan()
+
+
+t_metaphlan <- metaphlan %>%
+        transposeMetaphlan()
 
 ```
 
@@ -118,25 +71,25 @@ project_filter <- "MP"
 metadata_MP <- isolateProjectMetadata(metadata, project_filter = project_filter)
 metadata_MP_with_data <- isolateProjectMetadata(metadata_in_metaphlan, project_filter = project_filter)
 
-new_metadata_MP <- isolateProjectMetadata(new_metadata)
-new_metadata_MP_with_data <- isolateProjectMetadata(new_metadata_in_metaphlan, project_filter = project_filter)
+# new_metadata_MP <- isolateProjectMetadata(new_metadata)
+# new_metadata_MP_with_data <- isolateProjectMetadata(new_metadata_in_metaphlan, project_filter = project_filter)
 
 
 
-remission_relapse <- metadata_MP_with_data %>%
-  filter(!is.na(pdai_score)) %>%
-  group_by(id) %>%
-  filter(n_distinct(stage) == 2) %>%
-  select(id, stage, group, pdai_score) %>%
-  pivot_wider(names_from = stage, values_from = pdai_score) %>%
-  mutate(remission = if_else(inclusion - followup_30d > 2 & followup_30d <= 7, "remission", "relapse")) %>%
-  select(id, group, remission)
+# remission_relapse <- metadata_MP_with_data %>%
+#   filter(!is.na(pdai_score)) %>%
+#   group_by(id) %>%
+#   filter(n_distinct(stage) == 2) %>%
+#   select(id, stage, group, pdai_score) %>%
+#   pivot_wider(names_from = stage, values_from = pdai_score) %>%
+#   mutate(remission = if_else(inclusion - followup_30d > 2 & followup_30d <= 7, "remission", "relapse")) %>%
+#   select(id, group, remission)
+# 
+# metadata_MP_remission <- left_join(metadata_MP_with_data, remission_relapse)
 
-metadata_MP_remission <- left_join(metadata_MP_with_data, remission_relapse)
 
 
-
-new_remission_relapse <- new_metadata_MP_with_data %>% 
+remission_relapse <- metadata_MP_with_data %>% 
   filter(!is.na(pdai_score), x_axis %in% c("Pre", "Post")) %>%
   group_by(id) %>%
   filter(n_distinct(stage) == 2) %>%
@@ -145,19 +98,20 @@ new_remission_relapse <- new_metadata_MP_with_data %>%
   mutate(remission = if_else(inclusion - followup_30d > 2 & followup_30d <= 7, "remission", "relapse")) %>%
   select(id, group, remission)
 
-new_metadata_MP_remission <- left_join(new_metadata_MP_with_data, new_remission_relapse)
+metadata_MP_remission <- left_join(metadata_MP_with_data, remission_relapse)
 ```
 
 Next chunck checks which samples did not make it into the analysis
 ```{r}
-metadata_not_in_metaphlan <- metadata %>%
-  filter(!LibID %in% colnames(metaphlan)) %>%
-  filter(!is.na(id), !is.na(sample_barcode))
+# metadata_not_in_metaphlan <- metadata %>%
+#   filter(!LibID %in% colnames(metaphlan)) %>%
+#   filter(!is.na(id), !is.na(sample_barcode))
 
-new_metadata_not_in_metaphlan <- new_metadata %>% 
+metadata_not_in_metaphlan <- metadata %>% 
   filter(!is.na(sample_barcode)) %>% 
-  distinct(sample_barcode, .keep_all =TRUE) %>% 
-  filter(!str_detect(sample_barcode, "LIB"), !sample_barcode %in% colnames(new_metaphlan))
+  #distinct(sample_barcode, .keep_all =TRUE) %>% 
+  filter(!str_detect(sample_barcode, "LIB"), !sample_barcode %in% colnames(metaphlan)) %>% 
+  select(id, sample_barcode, project, stage, group)
 
 ```
 
@@ -168,36 +122,31 @@ new_metadata_not_in_metaphlan <- new_metadata %>%
 Species richness is defined as species with a relative abundance >0. Alpha diversity was calculated using Shannon Index.
 
 ```{r}
-# Species richness
-species_richness <- calculateSpeciesRichness(metaphlan, filter_species = 0)
+# # Species richness
+# species_richness <- calculateSpeciesRichness(metaphlan, filter_species = 0)
+# 
+# # Shannon diversity
+# shannon_diversity <- tibble(LibID = rownames(t_metaphlan), shannon = diversity(as.matrix(t_metaphlan), index = "shannon"))
+# alpha_diversity_df <- full_join(species_richness, shannon_diversity)
+# 
+# metadata_with_alpha <- metadata_in_metaphlan %>%
+#   left_join(alpha_diversity_df)
+# 
+# metadata_MP_remission_alpha <- left_join(metadata_MP_remission, alpha_diversity_df)
+```
 
-# Shannon diversity
-shannon_diversity <- tibble(LibID = rownames(t_metaphlan), shannon = diversity(as.matrix(t_metaphlan), index = "shannon"))
+
+```{r}
+species_richness <- calculateSpeciesRichness(metaphlan, filter_species = 0)
+shannon_diversity <- tibble(sample_barcode = rownames(t_metaphlan), shannon = diversity(as.matrix(t_metaphlan), index = "shannon"))
 alpha_diversity_df <- full_join(species_richness, shannon_diversity)
 
-metadata_with_alpha <- metadata_in_metaphlan %>%
+metadata_with_alpha <- metadata_MP_remission %>%
   left_join(alpha_diversity_df)
-
-metadata_MP_remission_alpha <- left_join(metadata_MP_remission, alpha_diversity_df)
-```
-
-
-```{r}
-new_species_richness <- new_metaphlan %>% 
-        pivot_longer(-clade_name, names_to = "sample_barcode") %>%
-        group_by(sample_barcode) %>%
-        summarise(richness = sum(value > 0))
-
-
-new_shannon_diversity <- tibble(sample_barcode = rownames(t_new_metaphlan), shannon = diversity(as.matrix(t_new_metaphlan), index = "shannon"))
-new_alpha_diversity_df <- full_join(new_species_richness, new_shannon_diversity)
-
-new_metadata_with_alpha <- new_metadata_MP_remission %>%
-  left_join(new_alpha_diversity_df)
 ```
 
 ```{r}
-new_metadata %>% 
+metadata %>% 
   filter(stage %in% c("inclusion", "followup_30d"), project=="MP") %>% 
   group_by(stage, group) %>% 
   summarise(n())
@@ -208,34 +157,16 @@ new_metadata %>%
 ### FMT/PLACEBO
 ```{r}
 gg_alpha_rich <- gg_alpha(metadata_MP_remission_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "richness") %>%
-  gg_compare_means(test = "wilcox.test", label.y = 75) +
-  labs(y = "Number of Species") +
-  ylim(0, 100)
-
-
-gg_alpha(new_metadata_with_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "richness") %>%
-  gg_compare_means(test = "wilcox.test", label.y = 150) +
+  gg_compare_means(test = "wilcox.test", label.y = 100) +
   labs(y = "Number of Species")
 
+
 gg_alpha_shan <- gg_alpha(metadata_MP_remission_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "shannon") %>%
-  gg_compare_means(test = "wilcox.test", label.y = 3) +
-  labs(y = "Shannon Diversity") +
-  ylim(0, 4.5)
+  gg_compare_means(test = "wilcox.test", label.y = 3.5) +
+  labs(y = "Shannon Diversity")
 
 ggarrange(gg_alpha_rich, gg_alpha_shan, ncol = 2, labels = c("A", "B"))
 # ggsave(paste0("../figures/MP_alpha_rich_shan.png"), device = "png", width = 8)
-```
-
-
-```{r}
-gg_alpha(new_metadata_with_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "richness") %>%
-  gg_compare_means(test = "wilcox.test", label.y = 150) +
-  labs(y = "Number of Species")
-
-gg_alpha(new_metadata_with_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "shannon") %>%
-  gg_compare_means(test = "wilcox.test", label.y = 3) +
-  labs(y = "Shannon Diversity")
-
 ```
 
 
@@ -244,18 +175,9 @@ gg_alpha(new_metadata_with_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = 
 Distance calculated as the median bray curtis distance from patient to set of donor samples received.
 
 ```{r}
-# source("./src/functions/beta_diversity_function.R")
-```
-
-
-```{r}
-# metadata_beta_diversity_bray <- beta_diversity(metadata_MP, t_metaphlan, transform = T, stages = c("Pre", "Post"), seed = 1)
-```
-
-```{r}
 metadata_beta_bray <- createMetadataWBetadiversity(metadata_MP, t_metaphlan, "bray", TRUE)
 
-new_metadata_beta_bray <- createMetadataWBetadiversity(new_metadata_MP, t_new_metaphlan, "bray", TRUE)
+# new_metadata_beta_bray <- createMetadataWBetadiversity(new_metadata_MP, t_new_metaphlan, "bray", TRUE)
 
 ```
 
@@ -263,6 +185,13 @@ new_metadata_beta_bray <- createMetadataWBetadiversity(new_metadata_MP, t_new_me
 metadata_beta_bray_FMT_and_placebo <- createANDcombineComparedOutputs(metadata_MP, metadata_beta_bray)
 metadata_beta_bray_summarised <- metadata_beta_bray_FMT_and_placebo %>%
   summariseBetaDiversityOutput()
+
+
+# new_metadata_beta_bray_FMT_and_placebo <- createANDcombineComparedOutputs(new_metadata_MP, new_metadata_beta_bray)
+# new_metadata_beta_bray_summarised <- new_metadata_beta_bray_FMT_and_placebo %>%
+#   summariseBetaDiversityOutput()
+
+
 ```
 
 ```{r}
