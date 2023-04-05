@@ -4,6 +4,9 @@
 data/*
 !data/.gitkeep
 tests/testthat/data/*
+figures/*
+!figures/.gitkeep
+
 
 addtest.R
 data_overview.Rmd
