@@ -166,7 +166,7 @@ gg_alpha_shan <- gg_alpha(metadata_MP_remission_alpha, x = c("Pre", "Post", "Don
   labs(y = "Shannon Diversity")
 
 ggarrange(gg_alpha_rich, gg_alpha_shan, ncol = 2, labels = c("A", "B"))
-# ggsave(paste0("../figures/MP_alpha_rich_shan.png"), device = "png", width = 8)
+ggsave(paste0("../figures/metaphlan4/alpha_beta/alpha_shannon_diversity.png"), device = "png", width = 8)
 ```
 
 
@@ -177,8 +177,6 @@ Distance calculated as the median bray curtis distance from patient to set of do
 ```{r}
 metadata_beta_bray <- createMetadataWBetadiversity(metadata_MP, t_metaphlan, "bray", TRUE)
 
-# new_metadata_beta_bray <- createMetadataWBetadiversity(new_metadata_MP, t_new_metaphlan, "bray", TRUE)
-
 ```
 
 ```{r}
@@ -186,22 +184,17 @@ metadata_beta_bray_FMT_and_placebo <- createANDcombineComparedOutputs(metadata_M
 metadata_beta_bray_summarised <- metadata_beta_bray_FMT_and_placebo %>%
   summariseBetaDiversityOutput()
 
-
-# new_metadata_beta_bray_FMT_and_placebo <- createANDcombineComparedOutputs(new_metadata_MP, new_metadata_beta_bray)
-# new_metadata_beta_bray_summarised <- new_metadata_beta_bray_FMT_and_placebo %>%
-#   summariseBetaDiversityOutput()
-
-
 ```
 
 ```{r}
-metadata_beta_bray_summarised %>%
+gg_bray <- metadata_beta_bray_summarised %>%
   filter(x_axis %in% c("Pre", "Post")) %>%
   mutate(x_axis = factor(x_axis, levels = c("Pre", "Post"))) %>%
   group_by(id) %>%
   filter(n_distinct(x_axis) == 2) %>%
   gg_beta(method = "bray") +
-  stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, label.y = 0.45, tip.length = 0.02)
+  stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, label.y = 0.45, tip.length = 0.02)+
+  labs(title = "Bray Similarity")
 ```
 
 
@@ -213,14 +206,22 @@ metadata_beta_sor_summarised <- createMetadataWBetadiversity(metadata_MP, t_meta
   summariseBetaDiversityOutput()
 
 
-metadata_beta_sor_summarised %>%
+gg_sor = metadata_beta_sor_summarised %>%
   filter(x_axis %in% c("Pre", "Post")) %>%
   mutate(x_axis = factor(x_axis, levels = c("Pre", "Post"))) %>%
   group_by(id) %>%
   filter(n_distinct(x_axis) == 2) %>%
   gg_beta(method = "sorensen") +
-  stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, tip.length = 0.02)
+  stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, tip.length = 0.02) +
+  labs(title = "Sørensen Similarity")
 ```
+
+
+```{r}
+ggarrange(gg_sor, gg_bray, ncol = 2, labels = c("A", "B"))
+ggsave(paste0("../figures/metaphlan4/alpha_beta/bray_sor_similarity.png"), device = "png", width = 13)
+```
+
 
 #### BRAY without Transformation
 Produces supplementary figure in MicroPouch article. Bray Curtis similarity without Hellinger transformation.
