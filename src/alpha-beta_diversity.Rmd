@@ -30,9 +30,8 @@ metaphlan <- read_delim(
     show_col_types = FALSE, 
     skip = 1
   ) %>% 
-    filter_taxonomy("species") %>% 
-    remove_NonHuman_from_colnames() %>% 
-    filter(clade_name != "UNCLASSIFIED")
+    filter_taxonomy("species", keep_unclassified = FALSE) %>% 
+    remove_NonHuman_from_colnames()
 
 
 ```
