@@ -15,7 +15,7 @@ gg_alpha <- function(df, x, alpha_metric = "richness") {
     }
 
     df_rename <- df %>%
-        rename(alpha_metric = alpha_metric)
+        rename(alpha_metric = all_of(alpha_metric))
 
     gg_richness_data <- df_rename %>%
         filter(!is.na(remission) | x_axis == "Donor", x_axis %in% x) %>% #
