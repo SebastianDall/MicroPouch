@@ -3,6 +3,8 @@ title: "heatmap"
 author: "Sebastian Mølvang Dall"
 date: '2022-08-10'
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ## Loading libraries
@@ -11,8 +13,8 @@ output: html_document
 library(tidyverse)
 library(ggpubr)
 library(mplibrary)
-source("./src/functions/metadata_functions.R")
-source("./src/functions/gg_functions.R")
+source("./functions/metadata_functions.R")
+source("./functions/gg_functions.R")
 ```
 
 ## Loading Data
@@ -22,20 +24,29 @@ source("./src/functions/gg_functions.R")
 ```{r}
 metadata <- load_metadata()
 
-metaphlan <- load_metaphlan(taxonomic_level = "genus")
+metaphlan <- read_delim(
+    "../data/metaphlan3/MetaPhlAn_4.0.3_Combined_NonHuman_Subsampled_2500000_profile.txt", 
+    delim = "\t", 
+    show_col_types = FALSE, 
+    skip = 1
+  ) %>% 
+    filter_taxonomy("genus") %>% 
+    remove_NonHuman_from_colnames()
+
+t_metaphlan <- metaphlan %>%
+        transposeMetaphlan()
 
 project_filter <- "MP"
 ```
 
 ```{r}
 metadata_in_metaphlan <- metadata %>%
-  filter(LibID %in% colnames(metaphlan))
+  filter(sample_barcode %in% colnames(metaphlan))
 
 
 metaphlan_long <- metaphlan %>%
-  select(-NCBI_tax_id) %>%
-  pivot_longer(-clade_name, names_to = "LibID") %>%
-  arrange(LibID)
+  pivot_longer(-clade_name, names_to = "sample_barcode") %>%
+  arrange(sample_barcode)
 ```
 
 ### Filtering for relevant patients and donors
@@ -112,7 +123,7 @@ gg_heat_inc <- metadata_tax_clustered %>%
   )
 gg_heat_inc
 
-# ggsave("../figures/heatmap_pre_donor_weight-hellinger.png", device = "png", width = 12, height = 10)
+ggsave("../figures/metaphlan4/heatmap_pre_donor_weight-hellinger.png", device = "png", width = 12, height = 10)
 ```
 
 
@@ -124,17 +135,17 @@ gg_heat_inc
 
 metadata_tax_post <- metadata_tax_hellinger %>%
   filter(x_axis == "Post") %>%
-  arrange(LibID)
+  arrange(sample_barcode)
 
 
 
 t_metaphlan_post_id <- metadata_tax_post %>%
-  select(id, LibID, group, sample_group, x_axis) %>%
-  distinct(LibID, .keep_all = T) %>%
+  select(id, sample_barcode, group, sample_group, x_axis) %>%
+  distinct(sample_barcode, .keep_all = T) %>%
   left_join(
-    rownames_to_column(t_metaphlan, "LibID")
+    rownames_to_column(t_metaphlan, "sample_barcode")
   ) %>%
-  select(!LibID:x_axis) %>%
+  select(!sample_barcode:x_axis) %>%
   column_to_rownames("id")
 ```
 
@@ -143,15 +154,15 @@ post_id_cluster_order <- metadata_tax_post %>%
   mutate(
     id = factor(
       id,
-      levels = str_subset(hclust_ward$labels[ward_order], "do", negate = T)
+      levels = levels(metadata_tax_clustered$id)#str_subset(hclust_ward$labels[ward_order], "do", negate = T)
     )
   )
 
 
-post_id_cluster_order %>%
+gg_heat_post <- post_id_cluster_order %>%
   filter(clade_name %in% top_genera_weighted$clade_name) %>%
   mutate(
-    clade_name = factor(clade_name, levels = top_genera_weighted_donor$clade_name),
+    clade_name = factor(clade_name, levels = top_genera_weighted_arranged_by_donor$clade_name),
     sample_group = factor(sample_group, levels = c("Post FMT", "Post placebo")),
     value = if_else(value < 10, round(value, 1), floor(value))
   ) %>%
@@ -163,9 +174,9 @@ post_id_cluster_order %>%
   labs(x = "", y = "") +
   plot_theme +
   theme(axis.text.x = element_text(angle = 90, vjust = -0.0001))
+gg_heat_post
 
-
-ggsave("../figures/heatmap_post_weight-hellinger.png", device = "png", width = 9, height = 10)
+ggsave("../figures/metaphlan4/heatmap_post_weight-hellinger.png", device = "png", width = 9, height = 10)
 ```
 
 
@@ -191,7 +202,7 @@ gg_heat_post <- post_id_cluster_order %>%
     axis.ticks.y = element_blank()
   )
 #
-# ggarrange(gg_heat_inc, gg_heat_post, ncol = 2, widths = c(3,2))
+ggarrange(gg_heat_inc, gg_heat_post + theme(axis.text.y = element_blank(),axis.ticks.y = element_blank()), ncol = 2, widths = c(3,2))
 #
 # ggsave("../figures/heatmap_pre_post_hellinger.png", device = "png", width = 21, height = 10)
 ```
