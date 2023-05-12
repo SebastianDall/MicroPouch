@@ -123,7 +123,7 @@ gg_heat_inc <- metadata_tax_clustered %>%
   )
 gg_heat_inc
 
-ggsave("../figures/metaphlan4/heatmap_pre_donor_weight-hellinger.png", device = "png", width = 12, height = 10)
+ggsave("../figures/metaphlan4/heatmap/heatmap_pre_donor_weight-hellinger.png", device = "png", width = 12, height = 10)
 ```
 
 
@@ -176,7 +176,7 @@ gg_heat_post <- post_id_cluster_order %>%
   theme(axis.text.x = element_text(angle = 90, vjust = -0.0001))
 gg_heat_post
 
-ggsave("../figures/metaphlan4/heatmap_post_weight-hellinger.png", device = "png", width = 9, height = 10)
+ggsave("../figures/metaphlan4/heatmap/heatmap_post_weight-hellinger.png", device = "png", width = 9, height = 10)
 ```
 
 
