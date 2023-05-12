@@ -186,4 +186,6 @@ metadata_beta_bray_untransformed_summarised %>%
   filter(n_distinct(x_axis) == 2) %>%
   gg_beta(method = "bray") +
   stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, tip.length = 0.02)
+
+ggsave(paste0("../figures/metaphlan4/alpha_beta/bray_similarity_transform_false.png"), device = "png", width = 13)
 ```
