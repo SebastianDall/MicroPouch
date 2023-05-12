@@ -22,15 +22,7 @@ source(file = "./functions/gg_functions.R")
 
 ## metadata + mikrobiom data
 ```{r}
-#metadata <- load_metadata()
-
-metadata <- read_delim("../data/metadata/metadata.csv", delim = ";", show_col_types = FALSE, col_types = list(batch_3 = col_double())) %>% 
-  filter(!is.na(sample_barcode)) %>% 
-  distinct(sample_barcode, .keep_all = TRUE)
-
-
-
-#metaphlan <- readr::read_delim("../data/metaphlan3/MetaPhlAn3_Subsample_5000000_species.csv", delim = "\t", show_col_types = FALSE)
+metadata <- load_metadata()
 
 metaphlan <- read_delim(
     "../data/metaphlan3/MetaPhlAn_4.0.3_Combined_NonHuman_Subsampled_2500000_profile.txt", 
@@ -49,16 +41,8 @@ metaphlan <- read_delim(
 First step is isolation of samples in colnames(metaphlan) in metadata sheet. Thereafter, relevant columns are selected.
 
 ```{r}
-# metadata_in_metaphlan <- metadata %>%
-#   filter(LibID %in% colnames(metaphlan))
-
 metadata_in_metaphlan <- metadata %>% 
   filter(sample_barcode %in% colnames(metaphlan))
-
-# t_metaphlan <- metaphlan %>% 
-#   select(-NCBI_tax_id) %>% 
-#   transposeMetaphlan()
-
 
 t_metaphlan <- metaphlan %>%
         transposeMetaphlan()
@@ -70,23 +54,6 @@ project_filter <- "MP"
 
 metadata_MP <- isolateProjectMetadata(metadata, project_filter = project_filter)
 metadata_MP_with_data <- isolateProjectMetadata(metadata_in_metaphlan, project_filter = project_filter)
-
-# new_metadata_MP <- isolateProjectMetadata(new_metadata)
-# new_metadata_MP_with_data <- isolateProjectMetadata(new_metadata_in_metaphlan, project_filter = project_filter)
-
-
-
-# remission_relapse <- metadata_MP_with_data %>%
-#   filter(!is.na(pdai_score)) %>%
-#   group_by(id) %>%
-#   filter(n_distinct(stage) == 2) %>%
-#   select(id, stage, group, pdai_score) %>%
-#   pivot_wider(names_from = stage, values_from = pdai_score) %>%
-#   mutate(remission = if_else(inclusion - followup_30d > 2 & followup_30d <= 7, "remission", "relapse")) %>%
-#   select(id, group, remission)
-# 
-# metadata_MP_remission <- left_join(metadata_MP_with_data, remission_relapse)
-
 
 
 remission_relapse <- metadata_MP_with_data %>% 
@@ -103,10 +70,6 @@ metadata_MP_remission <- left_join(metadata_MP_with_data, remission_relapse)
 
 Next chunck checks which samples did not make it into the analysis
 ```{r}
-# metadata_not_in_metaphlan <- metadata %>%
-#   filter(!LibID %in% colnames(metaphlan)) %>%
-#   filter(!is.na(id), !is.na(sample_barcode))
-
 metadata_not_in_metaphlan <- metadata %>% 
   filter(!is.na(sample_barcode)) %>% 
   #distinct(sample_barcode, .keep_all =TRUE) %>% 
@@ -120,21 +83,6 @@ metadata_not_in_metaphlan <- metadata %>%
 ### Calculating species richness and shannon diversity
 
 Species richness is defined as species with a relative abundance >0. Alpha diversity was calculated using Shannon Index.
-
-```{r}
-# # Species richness
-# species_richness <- calculateSpeciesRichness(metaphlan, filter_species = 0)
-# 
-# # Shannon diversity
-# shannon_diversity <- tibble(LibID = rownames(t_metaphlan), shannon = diversity(as.matrix(t_metaphlan), index = "shannon"))
-# alpha_diversity_df <- full_join(species_richness, shannon_diversity)
-# 
-# metadata_with_alpha <- metadata_in_metaphlan %>%
-#   left_join(alpha_diversity_df)
-# 
-# metadata_MP_remission_alpha <- left_join(metadata_MP_remission, alpha_diversity_df)
-```
-
 
 ```{r}
 species_richness <- calculateSpeciesRichness(metaphlan, filter_species = 0)
@@ -156,12 +104,12 @@ metadata %>%
 ## GGplot Alpha
 ### FMT/PLACEBO
 ```{r}
-gg_alpha_rich <- gg_alpha(metadata_MP_remission_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "richness") %>%
+gg_alpha_rich <- gg_alpha(metadata_with_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "richness") %>%
   gg_compare_means(test = "wilcox.test", label.y = 100) +
   labs(y = "Number of Species")
 
 
-gg_alpha_shan <- gg_alpha(metadata_MP_remission_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "shannon") %>%
+gg_alpha_shan <- gg_alpha(metadata_with_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "shannon") %>%
   gg_compare_means(test = "wilcox.test", label.y = 3.5) +
   labs(y = "Shannon Diversity")
 
