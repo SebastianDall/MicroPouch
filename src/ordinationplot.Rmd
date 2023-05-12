@@ -172,7 +172,7 @@ rda_ord_pt$plot +
   theme(legend.position = "none")
 
 
-# ggsave("../figures/amp_rda_hellinger_no_donor.png", device = "png")
+ggsave("../figures/metaphlan4/ordination/amp_rda_hellinger_no_donor.png", device = "png")
 ```
 
 
