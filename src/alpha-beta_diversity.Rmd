@@ -31,7 +31,8 @@ metaphlan <- read_delim(
     skip = 1
   ) %>% 
     filter_taxonomy("species") %>% 
-    remove_NonHuman_from_colnames()
+    remove_NonHuman_from_colnames() %>% 
+    filter(clade_name != "UNCLASSIFIED")
 
 
 ```
@@ -167,7 +168,7 @@ gg_sor = metadata_beta_sor_summarised %>%
 
 ```{r}
 ggarrange(gg_sor, gg_bray, ncol = 2, labels = c("A", "B"))
-ggsave(paste0("../figures/metaphlan4/alpha_beta/bray_sor_similarity.png"), device = "png", width = 13)
+ggsave(paste0("../figures/metaphlan4/alpha_beta/bray_sor_similarity_transform-true.png"), device = "png", width = 13)
 ```
 
 
