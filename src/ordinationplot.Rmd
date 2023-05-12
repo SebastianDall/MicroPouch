@@ -3,6 +3,8 @@ title: "Ordination plot"
 author: "Sebastian Mølvang Dall"
 date: '2022-08-24'
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 
@@ -13,8 +15,8 @@ library(tidyverse)
 library(ampvis2)
 library(RColorBrewer)
 library(mplibrary)
-source("./src/functions/metadata_functions.R")
-source("./src/functions/bioinformatics.R")
+source("./functions/metadata_functions.R")
+source("./functions/bioinformatics.R")
 ```
 
 
@@ -23,7 +25,14 @@ source("./src/functions/bioinformatics.R")
 ```{r}
 metadata <- load_metadata()
 
-metaphlan <- load_metaphlan("fulltax_species")
+metaphlan <- read_delim(
+    "../data/metaphlan3/MetaPhlAn_4.0.3_Combined_NonHuman_Subsampled_2500000_profile.txt", 
+    delim = "\t", 
+    show_col_types = FALSE, 
+    skip = 1
+  ) %>% 
+    filter_taxonomy("species", remove_tax_names = FALSE) %>% 
+    remove_NonHuman_from_colnames()
 
 project_filter <- "MP"
 ```
@@ -34,12 +43,11 @@ project_filter <- "MP"
 
 ```{r}
 metadata_in_metaplan <- metadata %>%
-  filter(LibID %in% colnames(metaphlan))
+  filter(sample_barcode %in% colnames(metaphlan))
 
-metadata_MP <- metadata %>%
-  filter(LibID %in% colnames(metaphlan)) %>%
+metadata_MP <- metadata_in_metaplan %>% 
   isolateProjectMetadata(project_filter = "MP") %>%
-  relocate(LibID) %>%
+  relocate(sample_barcode) %>%
   mutate(
     sample_group = paste0(x_axis, " ", group),
     sample_group = if_else(str_detect(sample_group, "Donor FMT"), str_remove(sample_group, " FMT"), sample_group)
@@ -51,8 +59,6 @@ metadata_MP <- metadata %>%
 
 ```{r}
 metaphlan_otu <- metaphlan %>%
-  select(-NCBI_tax_id) %>%
-  select(clade_name, metadata_MP$LibID) %>%
   mutate(OTU = paste0("OTU", row_number())) %>%
   relocate(OTU)
 
@@ -63,8 +69,16 @@ otutable <- metaphlan_otu %>%
 
 taxtable <- metaphlan_otu %>%
   select(OTU, clade_name) %>%
+  mutate(
+    clade_name = if_else(
+      clade_name == "UNCLASSIFIED", 
+      "k__UNCLASSIFIED|p__UNCLASSIFIED|c__UNCLASSIFIED|o__UNCLASSIFIED|f__UNCLASSIFIED|g__UNCLASSIFIED|s__UNCLASSIFIED", 
+      clade_name
+    )
+  ) %>%
   separate(clade_name, sep = "\\|", into = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")) %>%
-  relocate(OTU, .after = "Species")
+  relocate(OTU, .after = "Species") 
+  
 ```
 
 
@@ -94,7 +108,7 @@ metadata_pre_post <- metadata_MP %>%
 
 ```{r}
 d_pre_post <- d %>%
-  amp_subset_samples(LibID %in% metadata_pre_post$LibID)
+  amp_subset_samples(sample_barcode %in% metadata_pre_post$sample_barcode)
 ```
 
 #MP
@@ -102,12 +116,14 @@ d_pre_post <- d %>%
 
 ```{r}
 pca <- d %>%
-  amp_subset_samples(LibID %in% metadata_pre_post$LibID | x_axis == "Donor") %>%
+  amp_subset_samples(sample_barcode %in% metadata_pre_post$sample_barcode | x_axis == "Donor") %>%
+  amp_subset_taxa("k__UNCLASSIFIED", remove = TRUE) %>% 
   amp_ordinate(
     type = "pca",
     transform = "hellinger",
     sample_color_by = "sample_group",
     sample_shape_by = "x_axis",
+    sample_point_size = 4,
     species_plot = F,
     species_nlabels = 5,
     species_label_taxonomy = "Genus",
@@ -124,7 +140,10 @@ pt014_do016 <- pca$data %>%
 pca +
   geom_text(data = pt014_do016, aes(x = PC1, y = PC2 + 0.04, label = id), color = "red", size = 3)
 
-# ggsave("../figures/amp_pca_hellinger_all.png", device = "png", width = 7, height = 5)
+
+
+
+ggsave("../figures/metaplhan4/ordination/pca_hellinger_all.png", device = "png", width = 7, height = 5)
 ```
 
 
@@ -133,7 +152,7 @@ pca +
 paired_2_5 <- brewer.pal(n = 5, "Paired")[2:5]
 
 rda_ord_pt <- d_pre_post %>%
-  # amp_filter_samples(x_axis == "Post") %>%
+  amp_subset_taxa("k__UNCLASSIFIED", remove = TRUE) %>% 
   amp_ordinate(
     type = "rda",
     constrain = "sample_group",
