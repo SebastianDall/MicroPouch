@@ -16,6 +16,7 @@ library(ampvis2)
 library(RColorBrewer)
 library(mplibrary)
 library(RVAideMemoire)
+library(gginnards)
 source("./functions/metadata_functions.R")
 source("./functions/bioinformatics.R")
 ```
@@ -120,12 +121,12 @@ pca <- d %>%
   amp_subset_samples(sample_barcode %in% metadata_pre_post$sample_barcode | x_axis == "Donor") %>%
   amp_subset_taxa("k__UNCLASSIFIED", remove = TRUE) %>% 
   amp_ordinate(
-    type = "pca",
+    type = "PCA",
     transform = "hellinger",
     sample_color_by = "sample_group",
-    sample_shape_by = "x_axis",
+    # sample_shape_by = "x_axis",
     sample_point_size = 4,
-    species_plot = F,
+    species_plot = T,
     species_nlabels = 5,
     species_label_taxonomy = "Genus",
     filter_species = 0,
@@ -134,23 +135,28 @@ pca <- d %>%
   ) +
   geom_line(aes(group = id), color = "grey70") +
   theme(legend.title = element_blank()) +
-  scale_color_brewer(palette = "Paired")
+  scale_color_brewer(palette = "Paired", labels = c("Donor", "After FMT", "After Placebo", "Before FMT", "Before Placebo")) #+
+  # scale_shape_manual(values = c(16, 15, 17), labels = c("Donor", "After", "Before"))
 
 pt014_do016 <- pca$data %>%
   filter(id == "pt014" & x_axis == "Post" | donor_batch == "do016_4")
-pca +
-  geom_text(data = pt014_do016, aes(x = PC1, y = PC2 + 0.04, label = id), color = "red", size = 3)
+p <- pca +
+  geom_text(data = pt014_do016, aes(y = PC2 - 0.04, label = id), color = "red", size = 3)
+  
+move_layers(p, "GeomLine", "bottom")
 
-
-
-
-ggsave("../figures/metaplhan4/ordination/pca_hellinger_all.png", device = "png", width = 7, height = 5)
+ggsave("../figures/metaphlan4/ordination/pca_hellinger_pre_post_donor.png", device = "png", width = 7, height = 5)
 ```
 
 
 
 ```{r}
 paired_2_5 <- brewer.pal(n = 5, "Paired")[2:5]
+
+d_pre_post$metadata <- mutate(d_pre_post$metadata, sample_group = factor(
+  sample_group, levels = c("Pre FMT", "Post FMT", "Pre placebo", "Post placebo"), 
+  labels = c("Before FMT", "After FMT", "Before Placebo", "After Placebo")
+))
 
 rda_ord_pt <- d_pre_post %>%
   amp_subset_taxa("k__UNCLASSIFIED", remove = TRUE) %>% 
@@ -173,7 +179,7 @@ rda_ord_pt$plot +
   theme(legend.position = "none")
 
 
-ggsave("../figures/metaphlan4/ordination/amp_rda_hellinger_no_donor.png", device = "png")
+ggsave("../figures/metaphlan4/ordination/amp_rda_hellinger_no_donor.png", device = "png", width = 7, height = 5)
 ```
 
 
