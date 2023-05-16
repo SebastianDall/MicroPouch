@@ -90,7 +90,11 @@ shannon_diversity <- tibble(sample_barcode = rownames(t_metaphlan), shannon = di
 alpha_diversity_df <- full_join(species_richness, shannon_diversity)
 
 metadata_with_alpha <- metadata_MP_remission %>%
-  left_join(alpha_diversity_df)
+  left_join(alpha_diversity_df)# %>% 
+  # mutate(
+  #   x_axis = factor(x_axis, levels = stages_pre_post, labels = c("Before", "After", "Donor")),
+  #   group = factor(group, levels = c("FMT", "placebo"), labels = c("FMT","Placebo"))
+  # )
 ```
 
 ```{r}
@@ -104,14 +108,19 @@ metadata %>%
 ## GGplot Alpha
 ### FMT/PLACEBO
 ```{r}
+facet_labels <- c("FMT", "Placebo")
+names(facet_labels) <- c("FMT", "placebo")
+
 gg_alpha_rich <- gg_alpha(metadata_with_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "richness") %>%
   gg_compare_means(test = "wilcox.test", label.y = 100) +
-  labs(y = "Number of Species")
+  labs(y = "Number of Species") +
+  scale_x_discrete(labels = c("Before", "After", "Donor"))
 
 
 gg_alpha_shan <- gg_alpha(metadata_with_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "shannon") %>%
   gg_compare_means(test = "wilcox.test", label.y = 3.5) +
-  labs(y = "Shannon Diversity")
+  labs(y = "Shannon Diversity") +
+  scale_x_discrete(labels = c("Before", "After", "Donor"))
 
 ggarrange(gg_alpha_rich, gg_alpha_shan, ncol = 2, labels = c("A", "B"))
 ggsave(paste0("../figures/metaphlan4/alpha_beta/alpha_shannon_diversity.png"), device = "png", width = 8)
@@ -142,7 +151,8 @@ gg_bray <- metadata_beta_bray_summarised %>%
   filter(n_distinct(x_axis) == 2) %>%
   gg_beta(method = "bray") +
   stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, label.y = 0.45, tip.length = 0.02)+
-  labs(title = "Bray Similarity")
+  labs(title = "Bray Similarity") +
+  scale_x_discrete(labels = c("Before", "After"))
 ```
 
 
@@ -161,7 +171,8 @@ gg_sor = metadata_beta_sor_summarised %>%
   filter(n_distinct(x_axis) == 2) %>%
   gg_beta(method = "sorensen") +
   stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, tip.length = 0.02) +
-  labs(title = "Sørensen Similarity")
+  labs(title = "Sørensen Similarity") +
+  scale_x_discrete(labels = c("Before", "After"))
 ```
 
 
@@ -185,7 +196,8 @@ metadata_beta_bray_untransformed_summarised %>%
   group_by(id) %>%
   filter(n_distinct(x_axis) == 2) %>%
   gg_beta(method = "bray") +
-  stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, tip.length = 0.02)
+  stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, tip.length = 0.02) +
+  scale_x_discrete(labels = c("Before", "After"))
 
-ggsave(paste0("../figures/metaphlan4/alpha_beta/bray_similarity_transform_false.png"), device = "png", width = 13)
+ggsave(paste0("../figures/metaphlan4/alpha_beta/bray_similarity_transform_false.png"), device = "png", width = 7)
 ```
