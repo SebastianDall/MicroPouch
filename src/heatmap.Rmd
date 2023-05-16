@@ -19,7 +19,7 @@ source("./functions/gg_functions.R")
 
 ## Loading Data
 
-**Important!:The MicroPouchNP heatmap is in the bottom. Follow the headers**
+
 
 ```{r}
 metadata <- load_metadata()
@@ -107,7 +107,7 @@ gg_heat_inc <- metadata_tax_clustered %>%
   mutate(
     clade_name = factor(clade_name, levels = top_genera_weighted_arranged_by_donor$clade_name),
     x_axis = factor(x_axis, levels = c("Pre", "Donor")),
-    sample_group = factor(sample_group, levels = c("Pre FMT", "Pre placebo", "Donor")),
+    sample_group = factor(sample_group, levels = c("Pre FMT", "Pre placebo", "Donor"), labels = c("Before FMT", "Before Placebo", "Donor")),
     relative_abundance = if_else(relative_abundance < 10, round(relative_abundance, 1), floor(relative_abundance))
   ) %>%
   ggplot(aes(x = id, y = fct_rev(clade_name), fill = hellinger, label = relative_abundance)) +
@@ -163,7 +163,7 @@ gg_heat_post <- post_id_cluster_order %>%
   filter(clade_name %in% top_genera_weighted$clade_name) %>%
   mutate(
     clade_name = factor(clade_name, levels = top_genera_weighted_arranged_by_donor$clade_name),
-    sample_group = factor(sample_group, levels = c("Post FMT", "Post placebo")),
+    sample_group = factor(sample_group, levels = c("Post FMT", "Post placebo"), labels = c("After FMT", "After Placebo")),
     value = if_else(value < 10, round(value, 1), floor(value))
   ) %>%
   ggplot(aes(x = id, y = fct_rev(clade_name), fill = hellinger, label = value)) +
@@ -210,12 +210,11 @@ ggarrange(gg_heat_inc, gg_heat_post + theme(axis.text.y = element_blank(),axis.t
 ### Group by treatment
 
 ```{r}
-id_cluster_order <- t_metaphlan_long_id_donor_avg %>%
-  right_join(metadata_weigth) %>%
+id_cluster_order <- metadata_tax_hellinger %>% 
   mutate(
     id = factor(
       id,
-      levels = hclust_ward$labels[ward_order]
+      levels = levels(metadata_tax_clustered$id)
     )
   ) %>%
   group_by(id, clade_name, sample_group, x_axis, group) %>%
@@ -225,9 +224,9 @@ id_cluster_order <- t_metaphlan_long_id_donor_avg %>%
   ) %>%
   filter(clade_name %in% top_genera_weighted$clade_name) %>%
   mutate(
-    clade_name = factor(clade_name, levels = top_genera_weighted_donor$clade_name),
+    clade_name = factor(clade_name, levels = top_genera_weighted_arranged_by_donor$clade_name),
     x_axis = factor(x_axis, levels = c("Pre", "Post", "Donor")),
-    sample_group = factor(sample_group, levels = c("Pre FMT", "Post FMT", "Pre placebo", "Post placebo", "Donor")),
+    sample_group = factor(sample_group, levels = c("Pre FMT", "Post FMT", "Pre placebo", "Post placebo", "Donor"), labels = c("Before FMT", "After FMT", "Before Placebo", "After Placebo", "Donor")),
     relative_abundance = if_else(value < 10, round(value, 1), floor(value))
   )
 
@@ -248,7 +247,7 @@ gg_heat_fmt <- id_cluster_order %>%
   )
 gg_heat_fmt
 
-ggsave("../figures/heatmap_fmt_donor.png", device = "png", width = 12, height = 10)
+ggsave("../figures/metaphlan4/heatmap/heatmap_pre_post_fmt_donor.png", device = "png", width = 12, height = 10)
 ```
 
 
@@ -268,7 +267,7 @@ gg_heat_placebo <- id_cluster_order %>%
   )
 
 gg_heat_placebo
-ggsave("../figures/heatmap_placebo.png", device = "png", width = 9, height = 10)
+ggsave("../figures/metaphlan4/heatmap/heatmap_pre_post_placebo.png", device = "png", width = 10, height = 10)
 ```
 
 
