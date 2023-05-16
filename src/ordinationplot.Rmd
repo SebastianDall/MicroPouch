@@ -15,6 +15,7 @@ library(tidyverse)
 library(ampvis2)
 library(RColorBrewer)
 library(mplibrary)
+library(RVAideMemoire)
 source("./functions/metadata_functions.R")
 source("./functions/bioinformatics.R")
 ```
@@ -222,27 +223,27 @@ For factors significance of the fit is calculated by testing if the variation wi
 
 
 ```{r}
-t_metaphlan <- metaphlan %>%
-  dplyr::select(!NCBI_tax_id) %>%
-  pivot_longer(-clade_name, names_to = "LibID") %>%
-  pivot_wider(names_from = clade_name, values_from = value) %>%
-  filter(LibID %in% metadata_pre_post$LibID) %>%
-  arrange(LibID) %>%
-  column_to_rownames("LibID") %>%
+t_metaphlan <- metaphlan %>% 
+  transposeMetaphlan() %>% 
+  rownames_to_column("sample_barcode") %>%  
+  filter(sample_barcode %in% metadata_pre_post$sample_barcode) %>%
+  arrange(sample_barcode) %>%
+  column_to_rownames("sample_barcode") %>%
   abundance_filter(abundance_threshold = 10^-34) %>%
   vegan::decostand("hellinger") %>%
-  rownames_to_column("LibID")
+  rownames_to_column("sample_barcode")
+
 
 
 MetadataMetaphlan <- metadata_pre_post %>%
-  dplyr::select(LibID) %>%
+  dplyr::select(sample_barcode) %>%
   ungroup() %>%
   left_join(t_metaphlan) %>%
-  column_to_rownames("LibID") %>%
+  column_to_rownames("sample_barcode") %>%
   as.data.frame()
 
 constrain <- metadata_pre_post %>%
-  arrange(LibID) %>%
+  arrange(sample_barcode) %>%
   select(sample_group)
 
 
@@ -260,18 +261,18 @@ pairwise.factorfit(pca, constrain$sample_group)
 
 ```{r}
 metadata <- metadata %>%
-  filter(LibID %in% colnames(metaphlan)) %>%
-  relocate(LibID)
+  filter(sample_barcode %in% colnames(metaphlan)) %>%
+  relocate(sample_barcode)
 
 
 metaphlan_otu <- metaphlan %>%
-  select(-NCBI_tax_id) %>%
-  select(clade_name, metadata$LibID) %>%
+  # select(-NCBI_tax_id) %>%
+  select(clade_name, metadata$sample_barcode) %>%
   mutate(OTU = paste0("OTU", row_number())) %>%
   relocate(OTU)
 
 otutable <- metaphlan_otu %>%
-  select(-clade_name)
+  # select(-clade_name)
 
 taxtable <- metaphlan_otu %>%
   select(OTU, clade_name) %>%
