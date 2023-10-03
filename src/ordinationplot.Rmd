@@ -176,8 +176,9 @@ rda_ord_pt$plot +
   labs(fill = "", color = "") +
   scale_color_manual(values = paired_2_5) +
   scale_fill_manual(values = paired_2_5) +
-  theme(legend.position = "none")
+  theme(legend.position = "right")
 
+rda_ord_pt$model
 
 ggsave("../figures/metaphlan4/ordination/amp_rda_hellinger_no_donor.png", device = "png", width = 7, height = 5)
 ```
@@ -253,8 +254,8 @@ constrain <- metadata_pre_post %>%
   select(sample_group)
 
 
-RDA <- rda(MetadataMetaphlan ~ sample_group, data = constrain)
-envfit(RDA, env = constrain)
+# RDA <- rda(MetadataMetaphlan ~ sample_group, data = constrain)
+# envfit(RDA, env = constrain)
 
 pca <- rda(MetadataMetaphlan)
 envfit(pca ~ constrain$sample_group)

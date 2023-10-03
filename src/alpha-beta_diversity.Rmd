@@ -37,6 +37,7 @@ metaphlan <- read_delim(
 ```
 
 
+
 ### Isolate metadata in metaphlan table
 First step is isolation of samples in colnames(metaphlan) in metadata sheet. Thereafter, relevant columns are selected.
 
@@ -62,7 +63,7 @@ remission_relapse <- metadata_MP_with_data %>%
   filter(n_distinct(stage) == 2) %>%
   select(id, stage, group, pdai_score) %>%
   pivot_wider(names_from = stage, values_from = pdai_score) %>%
-  mutate(remission = if_else(inclusion - followup_30d > 2 & followup_30d <= 7, "remission", "relapse")) %>%
+  mutate(remission = if_else(followup_30d < 7, "remission", "relapse")) %>%
   select(id, group, remission)
 
 metadata_MP_remission <- left_join(metadata_MP_with_data, remission_relapse)
@@ -77,9 +78,6 @@ metadata_not_in_metaphlan <- metadata %>%
   select(id, sample_barcode, project, stage, group)
 
 ```
-
-
-
 ### Calculating species richness and shannon diversity
 
 Species richness is defined as species with a relative abundance >0. Alpha diversity was calculated using Shannon Index.
@@ -126,6 +124,72 @@ ggarrange(gg_alpha_rich, gg_alpha_shan, ncol = 2, labels = c("A", "B"))
 ggsave(paste0("../figures/metaphlan4/alpha_beta/alpha_shannon_diversity.png"), device = "png", width = 8)
 ```
 
+### Clinical improvement and alpha-diversity
+```{r}
+clinical_effect_and_alpha <- metadata_with_alpha %>% 
+  filter(stage %in% c("inclusion", "followup_30d"), group == "FMT") %>% 
+  select(id, stage, richness, shannon, pdai_score, remission) %>% 
+  pivot_wider(names_from=stage, values_from=c(richness, shannon, pdai_score)) %>% 
+  mutate(
+    pdai_diff = (pdai_score_followup_30d - pdai_score_inclusion),
+    richness_diff = richness_followup_30d - richness_inclusion,
+    shannon_diff = shannon_followup_30d - shannon_inclusion
+  ) %>% 
+  select(id, pdai_diff:shannon_diff, remission) %>% 
+  pivot_longer(cols = c(richness_diff, shannon_diff), names_to = "alpha", values_to="value") %>% 
+  filter(!is.na(pdai_diff))
+
+lm_fit_rich <- lm(value ~ pdai_diff, data = filter(clinical_effect_and_alpha, alpha == "richness_diff"))
+lm_fit_shan <- lm(value ~ pdai_diff, data = filter(clinical_effect_and_alpha, alpha == "shannon_diff"))
+summary(lm_fit_rich)
+summary(lm_fit_shan)
+r_squared <- summary(lm_fit_rich)$r.squared
+
+
+clinical_effect_and_alpha %>% 
+  mutate(
+    alpha = factor(alpha, levels = c("richness_diff", "shannon_diff"), labels=c("Richness (After - Before)", "Shannon (After - Before)"))
+  ) %>% 
+  ggplot(aes(x = pdai_diff, y = value)) +
+    geom_smooth(method="lm", color="black") +
+    geom_point(size = 3, aes(color = remission)) +
+    facet_grid(alpha~., scales = "free_y") +
+    scale_x_continuous(breaks = function(b) seq(floor(min(b)), ceiling(max(b)), by=1)) + 
+    plot_theme +
+    theme(
+      axis.title.x = element_text(),
+      legend.position = "right"
+    ) +
+    scale_x_reverse() + 
+    labs(x = "Change in PDAI score (Before - After)", y = "Alpha diversity", title = "Comparison of clinical effect and alpha diversity in the FMT group")
+
+ggsave("../figures/metaphlan4/alpha_beta/alpha_v_clinical_effect.png", device= "png", width = 8)
+```
+
+
+## Pdai
+```{r}
+metadata_pdai <- metadata_MP %>% 
+  select(id,project, group, stage, contains("pdai")) %>% 
+  filter(project == "MP") %>% 
+  select(id:pdai_h2) %>% 
+  mutate(
+    c = pdai_stool_frequency + pdai_rectal_bleeding + pdai_bowel_abdominal + pdai_fever,
+    e = pdai_edema + pdai_granularity + pdai_friability + pdai_vp_loss,
+    h = pdai_h1 + pdai_h2
+  ) %>% 
+  select(id:stage, c,e,h) %>% 
+  filter(stage %in% c("inclusion", "followup_30d")) %>% 
+  pivot_longer(cols = c:h) %>% 
+  mutate(value = if_else(is.na(value), 0, value))
+
+
+metadata_pdai %>% 
+ggplot(aes(x=factor(stage, levels=c("inclusion", "followup_30d")), y = value, color = stage)) + 
+  geom_point(size = 4,alpha = 0.8, position=position_jitter(width=0.1, height=0.01)) + 
+  facet_grid(group~name)
+```
+
 
 ## Beta-Diversity
 ### BRAY CURTIS
@@ -145,8 +209,11 @@ metadata_beta_bray_summarised <- metadata_beta_bray_FMT_and_placebo %>%
 
 ```{r}
 gg_bray <- metadata_beta_bray_summarised %>%
-  filter(x_axis %in% c("Pre", "Post")) %>%
-  mutate(x_axis = factor(x_axis, levels = c("Pre", "Post"))) %>%
+  filter(x_axis %in% c("Pre", "Post"), actual_donor != "Donors not received") %>%
+  mutate(
+    x_axis = factor(x_axis, levels = c("Pre", "Post")),
+    actual_donor = if_else(actual_donor == "Actual Donors", "Donors received", actual_donor)
+  ) %>%
   group_by(id) %>%
   filter(n_distinct(x_axis) == 2) %>%
   gg_beta(method = "bray") +
@@ -165,8 +232,11 @@ metadata_beta_sor_summarised <- createMetadataWBetadiversity(metadata_MP, t_meta
 
 
 gg_sor = metadata_beta_sor_summarised %>%
-  filter(x_axis %in% c("Pre", "Post")) %>%
-  mutate(x_axis = factor(x_axis, levels = c("Pre", "Post"))) %>%
+  filter(x_axis %in% c("Pre", "Post"), actual_donor != "Donors not received") %>%
+  mutate(
+    x_axis = factor(x_axis, levels = c("Pre", "Post")),
+    actual_donor = if_else(actual_donor == "Actual Donors", "Donors received", actual_donor)
+  ) %>% 
   group_by(id) %>%
   filter(n_distinct(x_axis) == 2) %>%
   gg_beta(method = "sorensen") +
@@ -191,8 +261,11 @@ metadata_beta_bray_untransformed_summarised <- createMetadataWBetadiversity(meta
   summariseBetaDiversityOutput()
 
 metadata_beta_bray_untransformed_summarised %>%
-  filter(x_axis %in% c("Pre", "Post")) %>%
-  mutate(x_axis = factor(x_axis, levels = c("Pre", "Post"))) %>%
+  filter(x_axis %in% c("Pre", "Post"), actual_donor != "Donors not received") %>%
+  mutate(
+    x_axis = factor(x_axis, levels = c("Pre", "Post")),
+    actual_donor = if_else(actual_donor == "Actual Donors", "Donors received", actual_donor)
+  ) %>% 
   group_by(id) %>%
   filter(n_distinct(x_axis) == 2) %>%
   gg_beta(method = "bray") +

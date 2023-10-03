@@ -12,6 +12,7 @@ output: html_document
 library(tidyverse)
 library(ggpubr)
 source("functions/metadata_functions.R")
+source("functions/gg_functions.R")
 ```
 
 
@@ -152,7 +153,7 @@ m %>%
          project == "MP") %>% 
   group_by(id) %>%
   filter(n_distinct(stage) == 2) %>% 
-  mutate(stage = factor(stage, levels = c("inclusion", "followup_30d"), labels = c("Pre", "Post"))) %>% 
+  mutate(stage = factor(stage, levels = c("inclusion", "followup_30d"), labels = c("Before", "After"))) %>% 
   ggplot(aes(x = stage, y = pdai_score, color = stage)) +
   geom_boxplot(outlier.shape = NA) +
   geom_line(aes(group = id), alpha = 0.6, color = "grey70", position = position_dodge(0.2)) + 
@@ -163,7 +164,7 @@ m %>%
   theme(legend.position = "none") +
   scale_y_continuous(breaks = integer_breaks())
 
-ggsave("../figures/pdai_score.png", device = "png", width = 8, height = 6)
+ggsave("../figures/pdai_score.png", device = "png", width = 6, height = 6)
   
 ```
 
