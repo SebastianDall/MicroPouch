@@ -124,6 +124,77 @@ ggarrange(gg_alpha_rich, gg_alpha_shan, ncol = 2, labels = c("A", "B"))
 ggsave(paste0("../figures/metaphlan4/alpha_beta/alpha_shannon_diversity.png"), device = "png", width = 8)
 ```
 
+```{r}
+gg_followup_data <- gg_alpha(metadata_with_alpha, x = c("Pre", "Post", "followup_1m", "followup_3m"), alpha_metric = "richness")$data
+
+
+gg_followup_data_mean <- gg_followup_data %>%
+  group_by(x_axis, group) %>% 
+  summarise(alpha_metric = mean(alpha_metric))
+
+gg_followup_data_n <- gg_followup_data %>% 
+  group_by(x_axis, group) %>% 
+  summarise(
+    n = n()
+  ) %>% 
+  mutate(
+    label = paste0("n: ", n),
+    alpha_metric = 100
+  )
+
+gg_followup_richness <- gg_followup_data %>%
+  ggplot(aes(x = x_axis, y = alpha_metric)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_line(data = filter(gg_followup_data, x_axis != "Donor"), aes(group = id), alpha = 0.6, color = "grey60", position = position_dodge(0.2), linetype = "dashed") +
+  geom_point(aes(group = id), position = position_dodge(0.2), size = 2, color = "grey80") +
+  # geom_point(data = gg_followup_data_mean, color = "red", size = 5) +
+  # geom_line(data = gg_followup_data_mean, aes(group = group), color = "red") +
+  geom_label(data = gg_followup_data_n, aes(label = label)) + 
+  plot_theme +
+  facet_grid(. ~ group) +
+  theme(legend.position = "none") +
+  scale_x_discrete(labels = c("Before", "After", "1Mth", "3Mth")) +
+  labs(y = "Number of Species")
+
+
+gg_followup_data <- gg_alpha(metadata_with_alpha, x = c("Pre", "Post", "followup_1m", "followup_3m"), alpha_metric = "shannon")$data
+
+
+gg_followup_data_mean <- gg_followup_data %>%
+  group_by(x_axis, group) %>% 
+  summarise(alpha_metric = mean(alpha_metric))
+
+gg_followup_data_n <- gg_followup_data %>% 
+  group_by(x_axis, group) %>% 
+  summarise(
+    n = n()
+  ) %>% 
+  mutate(
+    label = paste0("n: ", n),
+    alpha_metric = 4
+  )
+
+gg_followup_shannon <- gg_followup_data %>%
+  ggplot(aes(x = x_axis, y = alpha_metric)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_line(data = filter(gg_followup_data, x_axis != "Donor"), aes(group = id), alpha = 0.6, color = "grey60", position = position_dodge(0.2), linetype = "dashed") +
+  geom_point(aes(group = id), position = position_dodge(0.2), size = 2, color = "grey80") +
+  # geom_point(data = gg_followup_data_mean, color = "red", size = 5) +
+  # geom_line(data = gg_followup_data_mean, aes(group = group), color = "red") +
+  geom_label(data = gg_followup_data_n, aes(label = label)) + 
+  plot_theme +
+  facet_grid(. ~ group) +
+  theme(legend.position = "none") +
+  scale_x_discrete(labels = c("Before", "After", "1Mth", "3Mth")) +
+  labs(y = "Shannon Diversity")
+
+ggarrange(gg_followup_richness, gg_followup_shannon, ncol = 2, labels = c("A", "B"))
+# ggsave(paste0("../figures/metaphlan4/alpha_beta/alpha_shannon_diversity_followup.png"), device = "png", width = 12)
+```
+
+
+
+
 ### Clinical improvement and alpha-diversity
 ```{r}
 clinical_effect_and_alpha <- metadata_with_alpha %>% 
