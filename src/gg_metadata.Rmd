@@ -3,6 +3,8 @@ title: "ggplots for metadata"
 author: "Sebastian Mølvang Dall"
 date: '2022-06-22'
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 
@@ -40,13 +42,13 @@ stage_fct <- c("inclusion",
 ### Load metadata file
 
 ```{r}
-m <- load_metadata()
+m <- mplibrary::load_metadata()
 ```
 
 #### patient samples
 ```{r}
 m_pt <- m %>% 
-  filter(!is.na(LibID), project %in% c("MP", "OP", "NP")) %>% 
+  filter(!is.na(sample_barcode), project %in% c("MP", "OP", "NP")) %>% 
   mutate(stage = factor(stage, levels = stage_fct, labels = stage_fct),
          pool_ng = round(pool_ng, 2)) %>% 
   arrange(id, project) %>% 
@@ -168,16 +170,161 @@ ggsave("../figures/pdai_score.png", device = "png", width = 6, height = 6)
   
 ```
 
+
+```{r}
+fmt_remission <- x %>% 
+  select(id, group, stage, pdai_score) %>% 
+  pivot_wider(names_from = stage, values_from = pdai_score) %>% 
+  mutate(
+    diff = Before - After,
+    remission = if_else(
+      After < 7, TRUE, FALSE
+    )
+  ) %>% 
+  filter(remission, group == "FMT")
+
+
+m_pt %>%
+  filter(project == "MP", id %in% fmt_remission$id) %>% 
+  filter(stage %in% c("treatment_5", "treatment_10", "treatment_15", "treatment_21"),
+         !is.na(group)) %>% 
+  select(id, stage, project, group, donor) %>%
+  mutate(
+    stage_number = as.double(str_extract(stage, "[0-9]+")),
+    donor_round = case_when(
+      stage_number <= 5 ~ "round 1",
+      stage_number <= 10 ~ "round 2",
+      stage_number <= 15 ~ "round 3",
+      stage_number <= 21 ~ "round 4",
+    )
+  ) %>% 
+  mutate(donor = parse_number(donor)) %>% 
+  ggplot(aes(x = donor_round, y = id, fill = as.factor(donor), label = donor)) + 
+  geom_tile(color="white") + 
+  facet_grid(~project) + 
+  geom_text(check_overlap = T) + 
+  theme(axis.text.x = element_text(angle = 45,
+                                   hjust = 1))
+
+```
+
+
+
+
 ## correlation bewtween PDAI and ext_conc
 
 ```{r}
 m_pt %>% 
   filter(stage %in% c("inclusion", "followup_30d"),
          project == "MP") %>% 
-  ggplot(aes(x = ext_conc, y = pdai_score, color = stage, shape = stage)) +
+  ggplot(aes(x = dna_conc, y = pdai_score, color = stage, shape = stage)) +
   #geom_line(aes(group = id), color = "black") +
   geom_point(size = 3) + 
   scale_y_continuous(breaks = integer_breaks())
+```
+
+
+
+## Treatment retention time
+```{r}
+
+m_all <- read_delim("../data/metadata/metadata.csv", delim = ";", show_col_types = FALSE, col_types = list(batch_3 = col_double()))
+
+
+m_treatment <- m_all %>% 
+  select(id, sample_barcode, group, project, treatment_time:treatment_length, stage) %>% 
+  filter(project == "MP") %>% 
+  filter(!is.na(treatment_length)) %>% 
+  mutate(
+    stage_number = as.double(str_extract(stage, "[0-9]+")),
+    donor_round = case_when(
+      stage_number <= 5 ~ "round 1",
+      stage_number <= 10 ~ "round 2",
+      stage_number <= 15 ~ "round 3",
+      stage_number <= 21 ~ "round 4",
+    )
+  )
+
+
+
+treatment_time_median <- m_treatment %>% 
+  group_by(group) %>% 
+  summarise(
+    median = median(treatment_length),
+    mean = mean(treatment_length),
+    sd = sd(treatment_length)
+  ) %>% 
+  mutate(
+    label = paste0(
+      "mean: ", round(mean,1), "\n",
+      "sd: ", round(sd,1), "\n",
+      "median: ", median
+    ),
+    id = case_when(
+      group == "FMT" ~ "pt005",
+      group == "placebo" ~ "pt003"
+    )
+  )
+
+
+
+m_treatment %>%
+  ggplot(aes(x = id, y = treatment_length)) +
+    geom_boxplot() + 
+    geom_point(position = position_jitter(width = 0.2), alpha = 0.5) + #aes(color = donor_round)
+    plot_theme +
+    geom_label(
+      data = treatment_time_median, aes(y = 200, label = label)
+    ) +
+    theme(
+      axis.text.x = element_text(angle = 45, vjust = 0.9, hjust = 0.9)
+    ) +
+    facet_grid(. ~group, scales = "free") +
+    labs(y = "Treatment Retention Time [min]")
+
+ggsave("../figures/metadata/id_retention_time.png", width = 8)
+
+# 
+# 
+# m_all %>% 
+#   select(id, sample_barcode, group, project, treatment_time:treatment_length, stage) %>% 
+#   filter(project == "MP") %>% 
+#   filter(!is.na(treatment_time)) %>% 
+#   mutate(
+#     stage_number = as.double(str_extract(stage, "[0-9]+")),
+#     donor_round = case_when(
+#       stage_number <= 5 ~ "round 1",
+#       stage_number <= 10 ~ "round 2",
+#       stage_number <= 15 ~ "round 3",
+#       stage_number <= 21 ~ "round 4",
+#     )
+#   ) %>%
+#   ggplot(aes(x = stage_number, y = treatment_length)) +
+#     # geom_boxplot() + 
+#     geom_point(aes(color = donor_round), position = position_jitter(width = 0.2), alpha = 0.5) +
+#     # geom_line(aes(group = id), color = "gray80", linetype = "dashed", position = position_dodge(width = 0.2)) +
+#     plot_theme +
+#     theme(
+#       axis.text.x = element_text(angle = 45, vjust = 0.9, hjust = 0.9)
+#     ) +
+#     facet_grid(.~group)
+
+
+m_treatment %>%
+  ggplot(aes(x = group, y = treatment_length)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(aes(color = donor_round), position = position_jitter(width = 0.2)) +
+  plot_theme +
+  geom_label(
+    data = treatment_time_median, aes(y = 260,label = label)
+  ) +
+  theme(
+    legend.position = "right"
+  ) +
+  labs(y = "Treatment Retention Time [min]", color = "Treatment Round")
+
+ggsave("../figures/metadata/group_retention_time.png", width = 8)
+
 ```
 
 
