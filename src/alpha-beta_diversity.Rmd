@@ -185,71 +185,6 @@ gg_followup_shannon <- gg_followup_data %>%
   labs(y = "Shannon Diversity")
 
 ggarrange(gg_followup_richness, gg_followup_shannon, ncol = 2, labels = c("A", "B"))
-# ggsave(paste0("../figures/metaphlan4/alpha_beta/alpha_shannon_diversity_followup.png"), device = "png", width = 12)
-```
-
-
-
-```{r}
-gg_followup_data <- gg_alpha(metadata_with_alpha %>% mutate(remission = if_else(id == "pt023", "remission", remission)), x = c("Pre", "treatment_5","treatment_10","treatment_15","treatment_21", "Post"), alpha_metric = "richness")$data %>% 
-  filter(id %in% c(paste0("pt0", c("01", "05", "06", "17", "23", "28"))))
-
-gg_followup_data_n <- gg_followup_data %>% 
-  group_by(x_axis, group) %>% 
-  summarise(
-    n = n()
-  ) %>% 
-  mutate(
-    label = paste0("n: ", n),
-    alpha_metric = 100
-  )
-
-gg_followup_data %>%
-  ggplot(aes(x = x_axis, y = alpha_metric)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_line(data = filter(gg_followup_data, x_axis != "Donor"), aes(group = id, color = id), alpha = 0.6, position = position_dodge(0.2), linetype = "dashed") +
-  geom_point(aes(group = id, color = id), position = position_dodge(0.2), size = 2) +
-  geom_label(data = gg_followup_data_n, aes(label = label)) + 
-  plot_theme +
-  facet_grid(. ~ group) +
-  theme(legend.position = "right") +
-  # scale_x_discrete(labels = c("Before", "After", "1Mth", "3Mth")) +
-  labs(y = "Number of Species")
-
-
-gg_followup_data <- gg_alpha(metadata_with_alpha, x = c("Pre", "Post", "followup_1m", "followup_3m"), alpha_metric = "shannon")$data %>% 
-  filter(id %in% c(paste0("pt0", c("01", "05", "06", "17", "23", "28"))))
-
-
-gg_followup_data_mean <- gg_followup_data %>%
-  group_by(x_axis, group) %>% 
-  summarise(alpha_metric = mean(alpha_metric))
-
-gg_followup_data_n <- gg_followup_data %>% 
-  group_by(x_axis, group) %>% 
-  summarise(
-    n = n()
-  ) %>% 
-  mutate(
-    label = paste0("n: ", n),
-    alpha_metric = 4
-  )
-
-gg_followup_shannon <- gg_followup_data %>%
-  ggplot(aes(x = x_axis, y = alpha_metric)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_line(data = filter(gg_followup_data, x_axis != "Donor"), aes(group = id), alpha = 0.6, color = "grey60", position = position_dodge(0.2), linetype = "dashed") +
-  geom_point(aes(group = id), position = position_dodge(0.2), size = 2, color = "grey80") +
-  # geom_point(data = gg_followup_data_mean, color = "red", size = 5) +
-  # geom_line(data = gg_followup_data_mean, aes(group = group), color = "red") +
-  geom_label(data = gg_followup_data_n, aes(label = label)) + 
-  plot_theme +
-  facet_grid(. ~ group) +
-  theme(legend.position = "none") +
-  scale_x_discrete(labels = c("Before", "After", "1Mth", "3Mth")) +
-  labs(y = "Shannon Diversity")
-
-ggarrange(gg_followup_richness, gg_followup_shannon, ncol = 2, labels = c("A", "B"))
 ggsave(paste0("../figures/metaphlan4/alpha_beta/alpha_shannon_diversity_followup.png"), device = "png", width = 12)
 ```
 
@@ -330,9 +265,6 @@ Distance calculated as the median bray curtis distance from patient to set of do
 ```{r}
 metadata_beta_bray <- createMetadataWBetadiversity(metadata_MP, t_metaphlan, "bray", TRUE)
 
-```
-
-```{r}
 metadata_beta_bray_FMT_and_placebo <- createANDcombineComparedOutputs(metadata_MP, metadata_beta_bray)
 metadata_beta_bray_summarised <- metadata_beta_bray_FMT_and_placebo %>%
   summariseBetaDiversityOutput()
@@ -353,6 +285,8 @@ gg_bray <- metadata_beta_bray_summarised %>%
   labs(title = "Bray Similarity") +
   scale_x_discrete(labels = c("Before", "After"))
 ```
+
+
 
 
 ### Sorensen
@@ -382,6 +316,42 @@ gg_sor = metadata_beta_sor_summarised %>%
 ggarrange(gg_sor, gg_bray, ncol = 2, labels = c("A", "B"))
 ggsave(paste0("../figures/metaphlan4/alpha_beta/bray_sor_similarity_transform-true.png"), device = "png", width = 13)
 ```
+
+
+
+```{r}
+gg_bray_followup <- metadata_beta_bray_summarised %>%
+  filter(x_axis %in% c("Pre", "Post", "followup_1m"), actual_donor != "Donors not received") %>%
+  mutate(
+    x_axis = factor(x_axis, levels = c("Pre", "Post", "followup_1m")),
+    actual_donor = if_else(actual_donor == "Actual Donors", "Donors received", actual_donor)
+  ) %>%
+  group_by(id) %>%
+  gg_beta(method = "bray") +
+  stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, label.y = 0.45, tip.length = 0.02)+
+  labs(title = "Bray Similarity") +
+  scale_x_discrete(labels = c("Before", "After", "1Mth"))
+
+gg_sor_followup = metadata_beta_sor_summarised %>%
+  filter(x_axis %in% c("Pre", "Post", "followup_1m"), actual_donor != "Donors not received") %>%
+  mutate(
+    x_axis = factor(x_axis, levels = c("Pre", "Post", "followup_1m")),
+    actual_donor = if_else(actual_donor == "Actual Donors", "Donors received", actual_donor)
+  ) %>% 
+  group_by(id) %>%
+  gg_beta(method = "sorensen") +
+  stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, tip.length = 0.02) +
+  labs(title = "Sørensen Similarity") +
+  scale_x_discrete(labels = c("Before", "After", "1Mth"))
+```
+
+```{r}
+ggarrange(gg_sor_followup, gg_bray_followup, ncol = 2, labels = c("A", "B"))
+ggsave(paste0("../figures/metaphlan4/alpha_beta/bray_sor_similarity_followup_transform-true.png"), device = "png", width = 13)
+```
+
+
+
 
 
 #### BRAY without Transformation
