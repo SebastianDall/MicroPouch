@@ -25,7 +25,7 @@ source("./functions/gg_functions.R")
 metadata <- load_metadata()
 
 metaphlan <- read_delim(
-    "../data/metaphlan3/MetaPhlAn_4.0.3_Combined_NonHuman_Subsampled_2500000_profile.txt", 
+    "../data/metaphlan4/MetaPhlAn_4.0.3_Combined_NonHuman_Subsampled_2500000_profile.txt", 
     delim = "\t", 
     show_col_types = FALSE, 
     skip = 1
@@ -40,10 +40,6 @@ project_filter <- "MP"
 ```
 
 ```{r}
-metadata_in_metaphlan <- metadata %>%
-  filter(sample_barcode %in% colnames(metaphlan))
-
-
 metaphlan_long <- metaphlan %>%
   pivot_longer(-clade_name, names_to = "sample_barcode") %>%
   arrange(sample_barcode)
@@ -57,7 +53,8 @@ Just as in alpha_beta_diversity.rmd, the donors are filtered such that only dono
 stages <- stages_pre_post
 
 
-metadata_relevant <- isolateProjectMetadata(metadata_in_metaphlan, project_filter = "MP") %>%
+metadata_relevant <- isolateProjectMetadata(metadata, project_filter = "MP") %>%
+  filter(sample_barcode %in% colnames(metaphlan)) %>% 
   mutate(
     sample_group = paste0(x_axis, " ", group),
     sample_group = if_else(str_detect(sample_group, "Donor FMT"), str_remove(sample_group, " FMT"), sample_group)

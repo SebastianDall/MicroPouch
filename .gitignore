@@ -6,7 +6,9 @@ data/*
 tests/testthat/data/*
 figures/*
 !figures/.gitkeep
-
+src/data-selection.R
+!data/metadata/metadata.csv
+!data/metaphlan4/
 
 addtest.R
 data_overview.Rmd

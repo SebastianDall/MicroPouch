@@ -28,7 +28,7 @@ source("./functions/bioinformatics.R")
 metadata <- load_metadata()
 
 metaphlan <- read_delim(
-    "../data/metaphlan3/MetaPhlAn_4.0.3_Combined_NonHuman_Subsampled_2500000_profile.txt", 
+    "../data/metaphlan4/MetaPhlAn_4.0.3_Combined_NonHuman_Subsampled_2500000_profile.txt", 
     delim = "\t", 
     show_col_types = FALSE, 
     skip = 1
@@ -44,11 +44,9 @@ project_filter <- "MP"
 ### Prepare metadata
 
 ```{r}
-metadata_in_metaplan <- metadata %>%
-  filter(sample_barcode %in% colnames(metaphlan))
-
-metadata_MP <- metadata_in_metaplan %>% 
+metadata_MP <- metadata %>% 
   isolateProjectMetadata(project_filter = "MP") %>%
+  filter(sample_barcode %in% colnames(metaphlan)) %>% 
   relocate(sample_barcode) %>%
   mutate(
     sample_group = paste0(x_axis, " ", group),

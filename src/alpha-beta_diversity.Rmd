@@ -25,7 +25,7 @@ source(file = "./functions/gg_functions.R")
 metadata <- load_metadata()
 
 metaphlan <- read_delim(
-    "../data/metaphlan3/MetaPhlAn_4.0.3_Combined_NonHuman_Subsampled_2500000_profile.txt", 
+    "../data/metaphlan4/MetaPhlAn_4.0.3_Combined_NonHuman_Subsampled_2500000_profile.txt", 
     delim = "\t", 
     show_col_types = FALSE, 
     skip = 1
@@ -39,12 +39,9 @@ metaphlan <- read_delim(
 
 
 ### Isolate metadata in metaphlan table
-First step is isolation of samples in colnames(metaphlan) in metadata sheet. Thereafter, relevant columns are selected.
+First step is isolation of relevant samples.
 
 ```{r}
-metadata_in_metaphlan <- metadata %>% 
-  filter(sample_barcode %in% colnames(metaphlan))
-
 t_metaphlan <- metaphlan %>%
         transposeMetaphlan()
 
@@ -54,7 +51,8 @@ t_metaphlan <- metaphlan %>%
 project_filter <- "MP"
 
 metadata_MP <- isolateProjectMetadata(metadata, project_filter = project_filter)
-metadata_MP_with_data <- isolateProjectMetadata(metadata_in_metaphlan, project_filter = project_filter)
+metadata_MP_with_data <- isolateProjectMetadata(metadata, project_filter = project_filter) %>% 
+  filter(sample_barcode %in% colnames(metaphlan))
 
 
 remission_relapse <- metadata_MP_with_data %>% 
@@ -88,11 +86,7 @@ shannon_diversity <- tibble(sample_barcode = rownames(t_metaphlan), shannon = di
 alpha_diversity_df <- full_join(species_richness, shannon_diversity)
 
 metadata_with_alpha <- metadata_MP_remission %>%
-  left_join(alpha_diversity_df)# %>% 
-  # mutate(
-  #   x_axis = factor(x_axis, levels = stages_pre_post, labels = c("Before", "After", "Donor")),
-  #   group = factor(group, levels = c("FMT", "placebo"), labels = c("FMT","Placebo"))
-  # )
+  left_join(alpha_diversity_df)
 ```
 
 ```{r}
@@ -112,13 +106,15 @@ names(facet_labels) <- c("FMT", "placebo")
 gg_alpha_rich <- gg_alpha(metadata_with_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "richness") %>%
   gg_compare_means(test = "wilcox.test", label.y = 100) +
   labs(y = "Number of Species") +
-  scale_x_discrete(labels = c("Before", "After", "Donor"))
+  scale_x_discrete(labels = c("Before", "After", "Donor")) +
+  scale_color_manual(values=c("#F8766D", "#00BA38", "#619CFF"))
 
 
 gg_alpha_shan <- gg_alpha(metadata_with_alpha, x = c("Pre", "Post", "Donor"), alpha_metric = "shannon") %>%
   gg_compare_means(test = "wilcox.test", label.y = 3.5) +
   labs(y = "Shannon Diversity") +
-  scale_x_discrete(labels = c("Before", "After", "Donor"))
+  scale_x_discrete(labels = c("Before", "After", "Donor")) +
+  scale_color_manual(values=c("#F8766D", "#00BA38", "#619CFF"))
 
 ggarrange(gg_alpha_rich, gg_alpha_shan, ncol = 2, labels = c("A", "B"))
 ggsave(paste0("../figures/metaphlan4/alpha_beta/alpha_shannon_diversity.png"), device = "png", width = 8)
@@ -283,7 +279,9 @@ gg_bray <- metadata_beta_bray_summarised %>%
   gg_beta(method = "bray") +
   stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, label.y = 0.45, tip.length = 0.02)+
   labs(title = "Bray Similarity") +
-  scale_x_discrete(labels = c("Before", "After"))
+  scale_x_discrete(labels = c("Before", "After")) +
+  scale_color_manual(values=c("#F8766D", "#00BA38"))
+
 ```
 
 
@@ -308,7 +306,8 @@ gg_sor = metadata_beta_sor_summarised %>%
   gg_beta(method = "sorensen") +
   stat_compare_means(label = "p.format", method = "wilcox.test", comparisons = list(c("Pre", "Post")), paired = T, tip.length = 0.02) +
   labs(title = "Sørensen Similarity") +
-  scale_x_discrete(labels = c("Before", "After"))
+  scale_x_discrete(labels = c("Before", "After")) +
+  scale_color_manual(values=c("#F8766D", "#00BA38"))
 ```
 
 
