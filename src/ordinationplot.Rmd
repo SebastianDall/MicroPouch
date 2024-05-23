@@ -28,13 +28,13 @@ source("./functions/bioinformatics.R")
 metadata <- load_metadata()
 
 metaphlan <- read_delim(
-    "../data/metaphlan4/MetaPhlAn_4.0.3_Combined_NonHuman_Subsampled_2500000_profile.txt", 
-    delim = "\t", 
-    show_col_types = FALSE, 
-    skip = 1
-  ) %>% 
-    filter_taxonomy("species", remove_tax_names = FALSE) %>% 
-    remove_NonHuman_from_colnames()
+  "../data/metaphlan4/MetaPhlAn_4.0.3_Combined_NonHuman_Subsampled_2500000_profile.txt",
+  delim = "\t",
+  show_col_types = FALSE,
+  skip = 1
+) %>%
+  filter_taxonomy("species", remove_tax_names = FALSE) %>%
+  remove_NonHuman_from_colnames()
 
 project_filter <- "MP"
 ```
@@ -44,9 +44,9 @@ project_filter <- "MP"
 ### Prepare metadata
 
 ```{r}
-metadata_MP <- metadata %>% 
+metadata_MP <- metadata %>%
   isolateProjectMetadata(project_filter = "MP") %>%
-  filter(sample_barcode %in% colnames(metaphlan)) %>% 
+  filter(sample_barcode %in% colnames(metaphlan)) %>%
   relocate(sample_barcode) %>%
   mutate(
     sample_group = paste0(x_axis, " ", group),
@@ -71,14 +71,13 @@ taxtable <- metaphlan_otu %>%
   select(OTU, clade_name) %>%
   mutate(
     clade_name = if_else(
-      clade_name == "UNCLASSIFIED", 
-      "k__UNCLASSIFIED|p__UNCLASSIFIED|c__UNCLASSIFIED|o__UNCLASSIFIED|f__UNCLASSIFIED|g__UNCLASSIFIED|s__UNCLASSIFIED", 
+      clade_name == "UNCLASSIFIED",
+      "k__UNCLASSIFIED|p__UNCLASSIFIED|c__UNCLASSIFIED|o__UNCLASSIFIED|f__UNCLASSIFIED|g__UNCLASSIFIED|s__UNCLASSIFIED",
       clade_name
     )
   ) %>%
   separate(clade_name, sep = "\\|", into = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")) %>%
-  relocate(OTU, .after = "Species") 
-  
+  relocate(OTU, .after = "Species")
 ```
 
 
@@ -111,13 +110,14 @@ d_pre_post <- d %>%
   amp_subset_samples(sample_barcode %in% metadata_pre_post$sample_barcode)
 ```
 
-#MP
+# MP
 ### Ordination
 
 ```{r}
+# shuffle barcodes
 pca <- d %>%
   amp_subset_samples(sample_barcode %in% metadata_pre_post$sample_barcode | x_axis == "Donor") %>%
-  amp_subset_taxa("k__UNCLASSIFIED", remove = TRUE) %>% 
+  amp_subset_taxa("k__UNCLASSIFIED", remove = TRUE) %>%
   amp_ordinate(
     type = "PCA",
     transform = "hellinger",
@@ -129,35 +129,64 @@ pca <- d %>%
     species_label_taxonomy = "Genus",
     filter_species = 0,
     # sample_plotly = "id",
-    sample_colorframe = F
-  ) +
-  geom_line(aes(group = id), color = "grey70") +
-  theme(legend.title = element_blank()) +
-  scale_color_brewer(palette = "Paired", labels = c("Donor", "After FMT", "After Placebo", "Before FMT", "Before Placebo")) #+
-  # scale_shape_manual(values = c(16, 15, 17), labels = c("Donor", "After", "Before"))
+    sample_colorframe = F,
+    detailed_output = T
+  )
 
-pt014_do016 <- pca$data %>%
+meta <- pca$dsites %>%
+  mutate(PC1 = -PC1)
+meta_labels <- meta %>%
   filter(id == "pt014" & x_axis == "Post" | donor_batch == "do016_4")
-p <- pca +
-  geom_text(data = pt014_do016, aes(y = PC2 - 0.04, label = id), color = "red", size = 3)
-  
-move_layers(p, "GeomLine", "bottom")
 
-ggsave("../figures/metaphlan4/ordination/pca_hellinger_pre_post_donor.png", device = "png", width = 7, height = 5)
+species <- pca$dspecies %>%
+  mutate(PC1 = -PC1)
+species_labels <- species %>%
+  filter(row_number() %in% 1:5) %>%
+  rename(label = Genus)
+
+model <- pca$model
+
+
+format_theme <- theme(
+  legend.title = element_blank(),
+  panel.grid.major = element_line(color = "gray90", linewidth = 0.5),
+  panel.grid.minor = element_line(color = "gray90", linewidth = 0.5),
+  axis.text = element_text(size = 6),
+  axis.title = element_text(size = 6, face = "bold"),
+  legend.text = element_text(size = 6), # Decrease legend text size
+  legend.key.size = unit(0.5, "lines"), # Decrease legend key size
+)
+
+pca_plot <- ggplot(species, aes(PC1, PC2)) +
+  geom_point(color = "grey70", size = 1) +
+  geom_line(data = meta, aes(group = id), color = "grey70") +
+  geom_point(data = meta, aes(color = sample_group), size = 2) +
+  scale_color_brewer(palette = "Paired", labels = c("Donor", "After FMT", "After Placebo", "Before FMT", "Before Placebo")) +
+  ggrepel::geom_text_repel(data = species_labels, aes(label = label), fontface = "bold.italic", size = 2) +
+  ggrepel::geom_text_repel(data = meta_labels, aes(label = id), color = "red", size = 2) +
+  theme_classic() +
+  labs(
+    x = paste0("PC1 [", round(model$CA$eig[1] / model$tot.chi * 100, 1), "%]"),
+    y = paste0("PC2 [", round(model$CA$eig[2] / model$tot.chi * 100, 1), "%]")
+  ) +
+  format_theme
+
+
+
+# ggsave("../figures/metaphlan4/ordination/pca_hellinger_pre_post_donor.png", device = "png", width = 7, height = 5)
 ```
-
-
 
 ```{r}
 paired_2_5 <- brewer.pal(n = 5, "Paired")[2:5]
 
 d_pre_post$metadata <- mutate(d_pre_post$metadata, sample_group = factor(
-  sample_group, levels = c("Pre FMT", "Post FMT", "Pre placebo", "Post placebo"), 
+  sample_group,
+  levels = c("Pre FMT", "Post FMT", "Pre placebo", "Post placebo"),
   labels = c("Before FMT", "After FMT", "Before Placebo", "After Placebo")
 ))
 
 rda_ord_pt <- d_pre_post %>%
-  amp_subset_taxa("k__UNCLASSIFIED", remove = TRUE) %>% 
+  amp_subset_taxa("k__UNCLASSIFIED", remove = TRUE) %>%
   amp_ordinate(
     type = "rda",
     constrain = "sample_group",
@@ -167,26 +196,31 @@ rda_ord_pt <- d_pre_post %>%
     sample_colorframe_label = "sample_group",
     species_plot = F,
     envfit_show = T,
-    detailed_output = T
+    detailed_output = T,
+    sample_colorframe_label_size = 2
   )
 
-rda_ord_pt$plot +
+
+rda_plot <- rda_ord_pt$plot +
   labs(fill = "", color = "") +
   scale_color_manual(values = paired_2_5) +
   scale_fill_manual(values = paired_2_5) +
-  theme(legend.position = "right")
+  theme_classic() +
+  format_theme
+rda_plot
 
-rda_ord_pt$model
 
 ggsave("../figures/metaphlan4/ordination/amp_rda_hellinger_no_donor.png", device = "png", width = 7, height = 5)
 ```
 
-
+```{r}
+ggpubr::ggarrange(pca_plot, rda_plot, ncol = 2, font.label = list(size = 8, color = "black", face = "bold", family = NULL), labels = c("A", "B"))
+ggsave("../figures/metaphlan4/ordination/amp_rda_pca_hellinger_no_donor.png", device = "png", width = 169, height = 63, units = "mm", dpi = 450)
+```
 
 
 
 ```{r}
-
 metadata_all_stages <- metadata_MP %>%
   filter(project %in% c("MP", "donor_batch"), x_axis %in% stages_all, group != "placebo") %>%
   mutate(x_axis = factor(x_axis, levels = stages_all)) %>%
@@ -228,9 +262,9 @@ For factors significance of the fit is calculated by testing if the variation wi
 
 
 ```{r}
-t_metaphlan <- metaphlan %>% 
-  transposeMetaphlan() %>% 
-  rownames_to_column("sample_barcode") %>%  
+t_metaphlan <- metaphlan %>%
+  transposeMetaphlan() %>%
+  rownames_to_column("sample_barcode") %>%
   filter(sample_barcode %in% metadata_pre_post$sample_barcode) %>%
   arrange(sample_barcode) %>%
   column_to_rownames("sample_barcode") %>%
@@ -279,7 +313,7 @@ metaphlan_otu <- metaphlan %>%
 otutable <- metaphlan_otu %>%
   # select(-clade_name)
 
-taxtable <- metaphlan_otu %>%
+  taxtable() <- metaphlan_otu %>%
   select(OTU, clade_name) %>%
   separate(clade_name, sep = "\\|", into = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species")) %>%
   relocate(OTU, .after = "Species")

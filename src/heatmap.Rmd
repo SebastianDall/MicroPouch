@@ -234,12 +234,14 @@ gg_heat_fmt <- id_cluster_order %>%
   ggplot(aes(x = id, y = fct_rev(clade_name), fill = hellinger, label = relative_abundance)) +
   geom_tile(color = "white") +
   scale_fill_gradient(low = "white", high = "red") +
-  geom_text(color = "black") +
+  geom_text(color = "black", size = 1) +
   facet_grid(. ~ sample_group, scales = "free_x", space = "free") +
   labs(x = "", y = "") +
   plot_theme +
   theme(
-    axis.text.x = element_text(angle = 90, vjust = -0.0001),
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 6),
+    axis.text.y = element_text(size = 6),
+    strip.text.x = element_text(size = 6),
     legend.position = "none"
   )
 gg_heat_fmt
@@ -254,12 +256,15 @@ gg_heat_placebo <- id_cluster_order %>%
   ggplot(aes(x = id, y = fct_rev(clade_name), fill = hellinger, label = relative_abundance)) +
   geom_tile(color = "white") +
   scale_fill_gradient(low = "white", high = "red") +
-  geom_text(color = "black") +
+  geom_text(color = "black", size = 1) +
   facet_grid(. ~ sample_group, scales = "free_x", space = "free") +
   labs(x = "", y = "") +
   plot_theme +
   theme(
-    axis.text.x = element_text(angle = 90, vjust = -0.0001),
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 6),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    strip.text.x = element_text(size = 6),
     legend.position = "none"
   )
 
@@ -267,6 +272,9 @@ gg_heat_placebo
 ggsave("../figures/metaphlan4/heatmap/heatmap_pre_post_placebo.png", device = "png", width = 10, height = 10)
 ```
 
-
+```{r}
+ggarrange(gg_heat_fmt, gg_heat_placebo, ncol = 2, widths = c(3,2), labels = c("A", "B"))
+ggsave("../figures/metaphlan4/heatmap/heatmap_pre_post_fmt_placebo.png", device = "png", width = 172, height = 81, units = "mm", dpi = 450, create.dir = T)
+```
 
 
